@@ -34,27 +34,27 @@ If you (or a colleague) already have a copy of frith, you can use it to make a f
 
 To start from scratch:
 
-# Install Tails on the first 8GB flash drive by following their instructions
-# Boot into the first drive
-# Configure a persistent volume as described here. Be sure to use a very strong encryption passphrase. Enable "GnuPG", "APT lists" and "APT packages"
-# Reboot
-# When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
-# Set a temporary administration password and continue
-# Open a terminal and cut and paste the following into it:
+1. Install Tails on the first 8GB flash drive by following their instructions
+1. Boot into the first drive
+1. Configure a persistent volume as described here. Be sure to use a very strong encryption passphrase. Enable "GnuPG", "APT lists" and "APT packages"
+1. Reboot
+1. When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
+1. Set a temporary administration password and continue
+1. Open a terminal and cut and paste the following into it:
 
 ```
     sudo bash -c "wget -qO - https://andrewg.com/andrewg-codesign.pub | apt-key add - ; cd /live/persistence/TailsData_unlocked; echo frith >> live-additional-software.conf; echo '/etc/apt source=apt/conf' >> persistence.conf; chown tails-persistence-setup:tails-persistence-setup live-additional-software.conf persistence.conf; chmod og= live-additional-software.conf persistence.conf; echo 'deb tor+http://andrewg.com/debian andrewg main' > /etc/apt/sources.list.d/andrewg.list; cp -a /etc/apt apt/conf; apt-get update && apt-get install -y frith"
 ```
 
     You will be prompted for the temporary administration password
-# Reboot
-# When prompted, select "Yes" for persistence and enter the passphrase
-# Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to install Tails on the second 8GB flash drive. Leave it plugged in
-# Open a terminal and run 'frith'
-# Follow the getting started procedure. This will prompt you for your personal details, create a new set of keys and perform a backup to the second Tails drive
-# When prompted, plug in the smartcard and/or the subkey flash drive
-# Frith will then publish your new public key (unless you started it with the --nopublish option)
-# You're done!
+1. Reboot
+1. When prompted, select "Yes" for persistence and enter the passphrase
+1. Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to install Tails on the second 8GB flash drive. Leave it plugged in
+1. Open a terminal and run 'frith'
+1. Follow the getting started procedure. This will prompt you for your personal details, create a new set of keys and perform a backup to the second Tails drive
+1. When prompted, plug in the smartcard and/or the subkey flash drive
+1. Frith will then publish your new public key (unless you started it with the --nopublish option)
+1. You're done!
 
 Remember to store the second Tails disk in a secure remote location.
 
