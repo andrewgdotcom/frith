@@ -41,6 +41,7 @@ To start from scratch:
 1. When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
 1. Set a temporary administration password and continue
 1. Open a terminal and cut and paste the following into it. You will be prompted for the temporary administration password
+
 	```
 	sudo bash -c "wget -qO - https://andrewg.com/andrewg-codesign.pub | apt-key add - ; cd /live/persistence/TailsData_unlocked; echo frith >> live-additional-software.conf; echo '/etc/apt source=apt/conf' >> persistence.conf; chown tails-persistence-setup:tails-persistence-setup live-additional-software.conf persistence.conf; chmod og= live-additional-software.conf persistence.conf; echo 'deb tor+http://andrewg.com/debian andrewg main' > /etc/apt/sources.list.d/andrewg.list; cp -a /etc/apt apt/conf; apt-get update && apt-get install -y frith"
 	```
