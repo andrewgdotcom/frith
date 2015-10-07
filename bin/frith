@@ -1,0 +1,2136 @@
+#!/usr/bin/perl
+my $program = 'frith';
+my $version = '0.1';
+
+########################################################################
+#
+# TODO LIST: 
+#
+# * Test publication workaround for monkeyscan/monkeysign
+# * Bug #1: tails-clone-persistent -> setuid
+#	* shift all user interaction back in here and change t-c-p to use
+#		command line options
+#	* t-c-p should then be noninteractive - easier to rewrite in C
+#	DONE!
+# * Bug #2: fix monkeyscan to work in some rudimentary fashion
+# * Bug #3: add option to t-c-p to copy a skel dir instead of live
+#	* populate /var/lib/frith/skel - imitate results of manual install
+#	DONE!
+# * Write smartcard handlers and test (need spare smartcard $$$$$$ !)
+# * Better error handling
+# * Better documentation
+# * Make taint-safe
+# * Make gpg shut up
+# * Various refactoring (see inline comments)
+# * Graphical interface! (one thing at a time, bucko...)
+#
+########################################################################
+
+
+# core libs
+use strict;
+use warnings;
+use Switch;
+use Sys::Hostname;
+use File::Path qw/ make_path /;
+use File::Temp qw/ tempfile tempdir /;
+use File::Spec::Functions qw(catfile);
+use Time::Piece;
+#use IPC::Open2;
+
+# common libs in tails
+use File::HomeDir qw(home);		# libfile-homedir-perl
+use DateTime;					# libdatetime-perl
+
+# extra debian libs
+use Email::Valid; 				# libemail-valid-perl
+use Term::ReadKey; 				# libterm-readkey-perl
+
+# cpan libs (we'll have to package these ourselves)
+# the rpm/alien version of Term::Choose is installed in a stupid place
+use lib "/usr/lib/perl5/vendor_perl/5.22.0";
+use Term::Choose qw(choose); 	# cpan 
+
+# debugging only - not in tails
+#use Data::Dumper;
+			
+# also requires:
+# tar
+
+# GnuPG::Interface does not do what we want. Will have to implement our
+# own harnesses for key management
+
+# Libraries preinstalled in tails that we may find useful in future:
+#
+# tails::perl5lib 		
+# ipc::run 				to replace open("|")
+# ipc::system::simple 	to replace system()
+# archive::tar::wrapper to replace system("tar")
+# file::copy::recursive to replace system("cp")
+
+# Other debian libraries perhaps useful in future:
+#
+# term::query 			to replace readkey, built in validation
+# term::readpassword 	to replace readkey for passwords
+
+
+##### GPG enumeration values
+
+my $reason_none = 0;
+my $reason_compromised = 1;
+my $reason_superseded = 2;
+my $reason_unused = 3;	
+my $reason_invalid = 4;
+
+
+##### Various defaults
+
+my $default_expiry = '2y';
+my $default_bits = 4096;
+
+my $default_laptop_key_dir = catfile(home(),'.ssh');
+my $default_laptop_key_suffix = '_subkeys.gpg';
+my $default_ssh_key_suffix = '_id_rsa';
+my $default_ssh_pubkey_suffix = '_id_rsa.pub';
+
+my $default_backup_dir = home();
+my $default_backup_file = 'gnupg.tar';
+
+my $gpg_location = catfile(home(),'.gnupg');
+
+
+###############
+# Houskeeping #
+###############
+
+END {
+	# clean up our own mess	
+	ReadMode(0);
+	system('stty sane');
+} 
+
+my $menu = new Term::Choose();
+
+
+#############################
+# Process command line args #
+#############################
+
+my %CMD_OPTIONS;
+
+sub parse_options {
+  while($ARGV[0] and $ARGV[0]=~/^--/) {
+	my $option = shift(@ARGV);
+	my $value = 1;
+	$option =~ s/^--//;
+	if($option =~ /=/) {
+		($option, $value) = split('=', $option);
+	}
+	$CMD_OPTIONS{$option} = $value;
+  }
+} 
+
+sub option_help {
+	print qq[${program} takes the following options:
+
+--help          This help
+--debug         Mild debugging info, screen is never cleared
+--debugpipe     Verbatim gnupg command output, can be verbose
+--nopublish     Suppress publishing keys, for safe testing
+
+];
+}
+
+sub get_date {
+	return localtime->strftime('%Y-%m-%d');
+}
+
+#################### Detection routines #######################
+
+# Let's probe to see what Tails features we can detect.
+# Otherwise we'll assume we're running on a standard box.
+
+my $using_tails = 0;
+my $using_tails_persistence = 0;
+my $using_tails_persistence_gpg = 0;
+my $using_tails_persistence_mail = 0;
+my $tails_partition = '';
+
+sub tails_test {
+	# detect tails configuration
+	if(-d '/home/amnesia' and hostname eq 'amnesia') {
+		$using_tails = 1;
+		if(-e '/dev/mapper/TailsData_unlocked') {
+			$using_tails_persistence = 1;
+			if(-d '/live/persistence/TailsData_unlocked/gnupg') {
+				$using_tails_persistence_gpg = 1;
+			}
+			# no, this isn't the test we should use
+			#if(-d '/live/persistence/TailsData_unlocked/claws-mail') {
+			#	$using_tails_persistence_mail = 1;
+			#}
+		}
+		open(my $pipe, 'mount|') or die "failed to check mounts\n";
+		while(<$pipe>) {
+			if(m!^(\S+) on /lib/live/mount/medium type vfat!) {
+				$tails_partition = $1;
+				last;
+			}
+		}
+		print "DEBUG: detected \$tails_partition = $tails_partition\n" 
+			if $CMD_OPTIONS{'debug'};
+	}
+}
+
+sub first_time {
+	my $num_keys = 0;
+	open(my $pipe, 'gpg2 --list-secret-keys --keyid-format 0xlong --with-fingerprint 2>/dev/null |') 
+		or die "failed to create gpg2 process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		$num_keys ++ if(/^sec/);
+	}
+	close($pipe);
+	print "Primary keys found: $num_keys\n";
+	return ! $num_keys;
+}
+
+my $fresh_smartcard = 0;
+
+sub detect_smartcard {
+	my $success = 0;
+	my $sigs = 'n/a';
+	open(my $pipe, 'gpg2 --card-status 2>/dev/null |') 
+		or die "failed to create gpg2 process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		if(s/^Signature counter : (\d+)$/$1/) {
+			$success = 1;
+			$sigs = $_;
+			last;
+		}
+	}
+	close($pipe);
+	$fresh_smartcard = ($success and $sigs eq '0');
+	print "DEBUG: Card $success: Signature count $sigs: Freshness $fresh_smartcard\n" if $CMD_OPTIONS{'debug'};
+	return $success;
+}
+
+
+#################################################################
+###################### Menu structure ###########################
+#################################################################
+
+
+# Define labels. We need these for comparisons because the menu return 
+# values are the full text of the label. (This will be a i18n nightmare)
+# Beware some labels may appear in multiple menus.
+
+my $LA_certify = 'Certify or decertify another person';
+my $LA_generate = 'Generate new key';
+my $LA_backup = 'Backup and restore';
+my $LA_laptop = 'Export laptop keys for use';
+my $LA_smartcard = 'Smartcard management (nothing here works yet)';
+my $LA_modify = 'Modify own key';
+my $LA_revoke = 'Revoke own key or subkey';
+my $LA_help = 'Help';
+
+my $LA_cert_scan = 'Certify using a QR code (not working)';
+my $LA_cert_manual = 'Certify manually';
+my $LA_decert_manual = 'Decertify a key';
+my $LA_usedefaults = 'Generate new key with recommended settings';
+my $LA_gen_advanced = 'Advanced key generation';
+my $LA_clone_to_tails = 'Clone to another Tails disk';
+my $LA_backup_to_file = 'Back up to file';
+my $LA_clone_from_tails = 'Clone from existing Tails disk';
+my $LA_restore_from_file = 'Restore from file';
+my $LA_propagate = "Install ${program} software on another Tails disk";
+my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard (not working)';
+my $LA_laptop_to_file = 'Export laptop keys to file';
+my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
+my $LA_init_smartcard = 'Initialise smartcard (not working)';
+my $LA_smartcard_advanced = 'Advanced smartcard management';
+my $LA_sc_pin = 'Change smartcard PINs (not working)';
+my $LA_sc_name = 'Change smartcard owner (not working)';
+my $LA_sc_lang = 'Change smartcard language (not working)';
+my $LA_sc_keylocation = 'Change smartcard public key location (not working)';
+my $LA_new_uid = 'Add a new UID to a primary key';
+my $LA_revoke_uid = 'Revoke a UID from a primary key';
+my $LA_key_passphrase = 'Change key passphrase';
+my $LA_expire_key = 'Change the expiry on a primary key';
+my $LA_new_subkey = 'Create a new subkey';
+my $LA_expire_subkey = 'Change the expiry on a subkey';
+my $LA_key_advanced = 'Advanced key management';
+my $LA_revoke_subkey = 'Revoke a subkey';
+my $LA_revoke_primary = 'Revoke my primary key';
+my $LA_getting_started = 'Getting started wizard';
+my $LA_manual = 'Operations manual';
+
+
+# Arrange our action labels into a menu structure.
+
+my @CH_top = (
+	$LA_certify, 
+	$LA_generate, 
+	$LA_backup, 
+	$LA_laptop, 
+	$LA_smartcard, 
+	$LA_modify, 
+	$LA_revoke,
+	$LA_help,
+);
+		
+my @CH_certify = (
+	$LA_cert_scan,
+	$LA_cert_manual,
+	$LA_decert_manual,
+);
+my @CH_generate = (
+	$LA_usedefaults,
+	$LA_gen_advanced,
+);
+my @CH_backup = (
+	$LA_clone_to_tails,
+	$LA_clone_from_tails,
+	$LA_backup_to_file,
+	$LA_restore_from_file,
+	$LA_propagate,
+);
+my @CH_backup_no_tails = (
+	$LA_backup_to_file,
+	$LA_restore_from_file,
+);
+my @CH_laptop = (
+	$LA_laptop_to_smartcard, 
+	$LA_laptop_to_file,
+	$LA_ssh_auth_to_file,
+);
+my @CH_smartcard = (
+	$LA_init_smartcard,
+	$LA_laptop_to_smartcard,
+	$LA_sc_pin,
+	$LA_sc_name,
+	$LA_sc_lang,
+	$LA_sc_keylocation,
+	$LA_smartcard_advanced,
+);
+my @CH_modify = (
+	$LA_key_passphrase,
+	$LA_new_uid,
+	$LA_revoke_uid,
+	$LA_expire_key,
+	$LA_new_subkey,
+	$LA_expire_subkey,
+	$LA_revoke_subkey,
+	$LA_key_advanced,
+);
+my @CH_revoke = (
+	$LA_revoke_subkey,
+	$LA_revoke_primary,
+);
+my @CH_help = (
+	$LA_manual,
+	$LA_getting_started,
+);
+
+my @CH_getting_started = (
+	$LA_usedefaults,
+	$LA_restore_from_file,
+	$LA_clone_from_tails,
+);
+my @CH_getting_started_no_tails = (
+	$LA_usedefaults,
+	$LA_restore_from_file,
+);
+
+
+# Now provide an eval method for actions. Define this above label actions
+# because some may want to use this hook functionality.
+# Note that identical labels will always trigger identical operations 
+# when using the actionmap.
+
+my %actionmap;
+sub evaluate_choice {
+	my $choice = shift;
+	print "You have chosen ${choice}\n\n" if $CMD_OPTIONS{'debug'};
+	&{$actionmap{$choice}}();
+}
+
+
+# Submenu logic. Define this above label actions because some may want to
+# create a submenu.
+
+sub make_submenu() {
+	my $heading = shift;
+	my $response = $menu->choose(
+		[@_, undef],
+		{
+			prompt => "${heading}\n\n",
+			undef  => 'Back',
+			layout => 3,
+		}
+	);
+	return $response;
+}
+
+#############################################################
+###################### UI tools #############################
+#############################################################
+
+# Tools to prompt the user with differing levels of urgency
+# Most of these use Term::Choose
+
+sub make_confirm() {
+	my $heading = shift;
+	my $response = $menu->choose(
+		[undef, 'Yes, I am really really sure'],
+		{
+			prompt => "Are you really really sure you want to ${heading}?\n\n",
+			undef  => 'On second thoughts, no',
+			layout => 3,
+		}
+	);
+	return $response;
+}
+
+sub make_yes() {
+	my $heading = shift;
+	my $response = $menu->choose(
+		['Yes', undef],
+		{
+			prompt => "I am about to ${heading}. Continue?\n\n",
+			undef  => 'Cancel',
+			layout => 3,
+		}
+	);
+	return $response;
+}
+
+sub make_pause() {
+	my $response = $menu->choose(
+		['Continue', undef],
+		{
+			prompt => "\n",
+			undef  => 'Go back',
+			layout => 3,
+		}
+	);
+	return $response;
+}
+
+sub make_warned() {
+	my $response = $menu->choose(
+		['Run away! Run away!', undef],
+		{
+			prompt => "CONSIDER YOURSELF WARNED\n\n",
+			undef  => 'Yes, I consider myself warned',
+			layout => 3,
+		}
+	);
+	# negate the return value, as we want undef --> true
+	return ! $response;
+}
+
+sub prompt_insert_sc() {
+	my $response = $menu->choose(
+		['OK', undef],
+		{
+			prompt => "Please insert a PGP smartcard\n\n",
+			undef  => 'Continue without smartcard',
+			layout => 3,
+		}
+	);
+	return $response;
+}
+
+sub prompt_overwrite_old_sc() {
+	my $response = $menu->choose(
+		[undef, 'Overwrite smartcard'],
+		{
+			prompt => "PGP Smartcard appears to be already in use\n\n",
+			undef  => 'Continue without smartcard',
+			layout => 3,
+		}
+	);
+	return $response;
+}
+
+
+# Tools to get sanitized user input
+# Most of these use Term::ReadKey
+
+sub user_input() {
+	# print a prompt
+	print shift;
+	my $input=ReadLine(0);
+	$input =~ s/[\n\r\f\t]//g;
+	return $input;
+}
+
+sub secure_input() {
+	my $prompt = shift;
+	ReadMode('noecho');
+	print $prompt;
+	my $input=ReadLine(0);
+	$input =~ s/[\n\r\f\t]//g;
+	print "\n";
+	ReadMode('restore');
+	return $input;
+}
+
+sub alnum_filter() {
+	my $input = shift;
+	$input =~ s/[^[:alnum:]]//g;
+	return $input;
+}
+
+sub id_filter() {
+	my $input = shift;
+	$input =~ s/ //g;
+	$input =~ s/([[:digit:]]+\/)?0x//;
+	return $input;
+}
+
+
+# Ask for important information and check for restrictions
+
+sub ask_name() {
+	my $name = &user_input('Full Name (minimum 5 chars): ');
+	while(length($name) < 5) {
+		$name = &user_input("Name too short!\nFull Name (minimum 5 chars): ");
+	}
+	return $name;
+}
+
+sub ask_email() {
+	my $email;
+	while (! $email) {
+		$email = &user_input('Email address: ');
+		while($email and ! Email::Valid->address($email)) {
+			$email = &user_input("Not a valid email address!\nEmail address: ");
+		}
+		unless($email) {
+			last if &make_confirm('create a UID with a blank email address');
+		}
+	}
+	return $email;
+}
+
+sub ask_expiry() {
+	print qq[It is strongly recommended to set an expiry date on all PGP keys.
+This ensures that lost keys will not remain valid forever. Expiry dates
+can be extended even after they have passed.\n\n];
+	my $expiry_prompt = "Expires in (suffix d,w,m,y OR date as YYYY-MM-DD, default $default_expiry): ";
+	my $expiry = &user_input($expiry_prompt);
+	while($expiry !~ /^(\d+[dwmy]|\d\d\d\d-\d\d-\d\d|)$/) {
+		print qq[That is not a valid expiry value\n];
+		$expiry = &user_input($expiry_prompt);
+	}
+	$expiry = $default_expiry unless $expiry;
+	return $expiry;
+}
+
+sub ask_usage() {
+	my $usage_prompt = 'Subkey usage (one or more of [S]ign [E]ncrypt [A]uthenticate): ';
+	my $usage = uc(&user_input($usage_prompt));
+	while($usage !~ /^[SEA]+$/) {
+		print qq[That is not a valid usage\n];
+		$usage = &user_input($usage_prompt);
+	}
+	return $usage;
+}
+
+sub ask_passphrase() {
+	print(q[A passphrase will be used to protect your keys.
+
+The passphrase should contain at least 16 characters, and at least one 
+non-alphanumeric character, such as punctuation.
+
+]);
+	my $passphrase;
+	my $confirm;
+	do {
+		$passphrase = &secure_input('Key passphrase: ');
+		while(
+			length($passphrase) < 16 or
+			! $passphrase =~ /[^[:alnum:]]/
+		) {
+			$passphrase = &secure_input(q[Passphrase is not strong enough.
+			
+Key passphrase: ]);
+		}
+		$confirm = &secure_input('Confirm: ');
+		print "\nConfirmation does not match\n" unless $passphrase eq $confirm;
+		
+	} until($passphrase eq $confirm);
+	
+	return $passphrase;
+}
+
+sub ask_with_default() {
+	my $prompt = shift;
+	my $default = shift;
+	
+	my $input = &user_input("$prompt [$default]: ");
+	$input = $default unless $input;
+	
+	return $input;
+}
+
+
+##############################################################
+####################### GPG harnesses ########################
+##############################################################
+
+
+############### Edit-key meta-harness
+
+# This particular incantation is used in lots of places, so abstract out
+
+sub edit_key() {
+	my $key_id = shift;
+	my $transcript = shift;
+	
+	# Nope, this doesn't seem to work. How do we get gpg to shut up?
+	my $redirect = $CMD_OPTIONS{'debug'}?'':'>/dev/null 2>&1';
+	
+	open(my $gpg_input, "|gpg --edit-key --keyid-format 0xlong --with-fingerprint --command-fd 0 --expert $key_id $redirect") 
+		or die "failed to create gpg process\n";
+		
+	print $gpg_input $transcript;
+	close $gpg_input;
+}
+
+
+############### Certify harnesses
+
+
+sub certify() {
+	my $key_id = shift;
+	my $my_key_id = shift;
+	print qq[DEBUG: certifying key $key_id with key $my_key_id\n] if $CMD_OPTIONS{'debug'};
+
+	return system('gpg2', '--sign-key', '--local-user', $my_key_id, $key_id);
+}
+
+############### Upload, download harnesses
+
+
+sub publish() {
+	my $key_id = shift;
+	print qq[DEBUG: publishing key $key_id\n] if $CMD_OPTIONS{'debug'};
+	if($CMD_OPTIONS{'nopublish'}) {
+		print qq[NOPUBLISH: no data will be published, skipping\n];
+	} else {
+		system('gpg2', '--send-keys', $key_id);
+	}
+}
+
+sub download_key() {
+	my $key_id = shift;
+	my $success;
+	open(my $pipe, "gpg --batch --keyid-format 0xlong --with-fingerprint --command-fd 0 --recv-keys $key_id </dev/null 2>&1 |") 
+		or die "failed to create gpg process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		if(/gpg: Total number processed: 1/) {
+			$success = $key_id;
+		}
+	}
+	close($pipe);
+	return $success;
+}
+
+
+################ Show info harnesses
+
+# These are ugly. Rework as per show_subkeys
+
+sub display_key_info() {
+	my $key_id = shift;
+	system('gpg', '--list-keys', '--keyid-format', '0xlong', '--with-fingerprint', $key_id);
+}
+
+sub list_secret_keys() {
+	system('gpg', '--list-secret-keys', '--keyid-format', '0xlong', '--with-fingerprint');
+}
+
+
+################ Make new stuff harnesses
+
+
+sub new_primarykey() {
+	# Create an RSA primary key with no usages other than Certify
+	# We only support RSA, for smartcard compatibility
+	my $name = shift;
+	my $email = shift;
+	my $options = shift; # hash REFERENCE, use ->{}
+	
+	my $expiry = $options->{'expiry'};
+	$expiry = $default_expiry unless $expiry;
+	
+	my $passphrase = $options->{'passphrase'}; # NEW passphrase - optional
+	$passphrase = '' unless $passphrase;
+
+	my $bits = $options->{'bits'};
+	$bits = $default_bits unless $bits;
+	
+# TODO: suppress noisy output
+
+	# send the gpg output to a spool file so we can extract the fpr
+	# of the new key later, otherwise we'll have no idea which key we
+	# just created
+	my $tempname = "/tmp/${program}-$$";
+	open(my $gpg_input, "|gpg --gen-key --keyid-format 0xlong --with-fingerprint --command-fd 0 --expert >$tempname 2>&1") 
+		or die "failed to create gpg process\n";
+		
+	# GPG transcript. Note that when using --command-fd 0 it DOES NOT
+	# use confirmation prompts, unlike interactive mode:
+	# 8 - Custom RSA
+	# s - no sign
+	# e - no encrypt (we have thus removed any default usages)
+	# q - continue (c usage is always implied on a primary key)
+	# bits
+	# expiry date
+	# full name
+	# email
+	# leave comment blank
+	# passphrase ONCE
+	print $gpg_input qq[8
+s
+e
+q
+$bits
+$expiry
+$name
+$email
+
+$passphrase
+];
+	close($gpg_input);
+	
+	# Now open the transcript file and extract the fingerprint.
+	# We won't delete it afterwards, as it may be useful for debugging.
+	my $key_id;
+	open(my $logfile,"<$tempname") 
+		or die("Cannot open $tempname for reading\n");
+	while(<$logfile>) {
+		if(s/^\s+Key fingerprint = //) {
+			$key_id = &id_filter($_);
+			last;
+		};
+	}
+	
+	return $key_id;
+}
+
+sub new_subkey() {
+	# Create an RSA subkey with a single usage
+	# We only support RSA, for smartcard compatibility
+	my $key_id = shift;
+	my $usage = shift;
+	my $passphrase = shift; # OLD passphrase - mandatory!
+	my $options = shift; # hash REFERENCE, use ->{}
+	
+	my $expiry = $options->{'expiry'};
+	$expiry = $default_expiry unless $expiry;
+		
+	my $bits = $options->{'bits'};
+	$bits = $default_bits unless $bits;
+	
+	# We do not normally generate multiuse subkeys, but we need the
+	# ability so we can cleanly replace revoked multiuse subkeys.
+	# For this to work we must first reformat the usage list to be
+	# newline-separated.
+	if(length($usage)>1) {
+		print qq[Attempting to rewrite multichar usage string "$usage" into a format
+that can be passed to gpg.\n] if $CMD_OPTIONS{'debug'};
+		$usage = join("\n", split(//, $usage));
+		print qq[This should be a single column with no blank lines:
+v
+$usage
+^
+] if $CMD_OPTIONS{'debug'};
+	}
+	
+	# GPG transcript:
+	# addkey
+	# passphrase
+	# 8 - Custom RSA
+	# s - no sign
+	# e - no encrypt (we have thus removed any default usages)
+	# explicit usage
+	# q - continue
+	# bits
+	# expiry date
+	# save
+	
+	&edit_key($key_id, qq[addkey
+$passphrase
+8
+s
+e
+$usage
+q
+$bits
+$expiry
+save
+]);
+}
+
+sub new_uid() {
+	my $key_id = shift;
+	my $name = shift;
+	my $email = shift;
+	my $passphrase = shift;
+			
+	# GPG transcript:
+	# name
+	# email
+	# blank comment
+	# passphrase
+	# save
+	
+	&edit_key($key_id, qq[adduid
+$name
+$email
+
+$passphrase
+save
+]);
+}
+
+
+################## Extract info for further processing harnesses
+
+
+# rewrite this so it returns secret key structures rather than just the
+# IDs - this will save some reimplementation in other routines below.
+sub get_secret_keys() {
+	my @secret_key_ids;
+	
+	open(my $pipe, "gpg --batch --keyid-format 0xlong --with-fingerprint --command-fd 0 --list-secret-keys </dev/null 2>&1|") 
+		or die "failed to create gpg process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		chop;
+		if(/^sec\s+([[:digit:]]+[A-Za-z]\/0x[a-fA-F0-9]+)\s+([[:digit:]-]+)(\s+\[expires: ([[:digit:]-]+)\])?$/) {
+			push(@secret_key_ids, $1);
+			print "DEBUG: secret key found $1\n" if $CMD_OPTIONS{'debug'};
+		}
+	}
+	close($pipe);
+	return @secret_key_ids;
+}
+
+sub get_subkeys() {
+	my $key_id = shift;
+	my @subkeys;
+
+	open(my $pipe, "gpg --batch --keyid-format 0xlong --with-fingerprint --command-fd 0 --edit-key $key_id </dev/null 2>&1|") 
+		or die "failed to create gpg process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		if(/^sub\s+[[:digit:]]+[A-Za-z]\/0x([a-fA-F0-9]+)\s+(created: [[:digit:]-]+)\s+((expires|revoked): ([[:digit:]-]+))\s+?usage: ([SEAC]+)\s*$/) {
+			my %subkey_data = (
+				'id' => $1, 
+				'is_revoked' => ($4 eq 'revoked'?1:0), 
+				'valid_until' => $5, 
+				'usage' => $6,
+			);
+			print "DEBUG: subkey found $1 $4 $5 $6\n" if $CMD_OPTIONS{'debug'};
+			push(@subkeys, \%subkey_data);
+		}
+	}
+	close($pipe);
+	return @subkeys;
+}
+
+sub get_uids() {
+	my $key_id = shift;
+	my @uids;
+
+	open(my $pipe, "gpg --batch --keyid-format 0xlong --with-fingerprint --command-fd 0 --edit-key $key_id </dev/null 2>&1|") 
+		or die "failed to create gpg process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		if(/^\[([[:alnum:]]+)\]\s+\(([[:digit:]]+)\)(\.| )\s+(.*)$/) {
+			my %uid_data = (
+				'trust' => $1, 
+				'index' => $2, 
+				'default' => ($3 eq '.'?1:0), 
+				'uid' => $4,
+			);
+			print "DEBUG: uid found [$1] ($2)$3 $4\n" if $CMD_OPTIONS{'debug'};
+			push(@uids, \%uid_data);
+		}
+	}
+	close($pipe);
+	return @uids;
+}
+
+sub get_subkey_id() {
+	my $key_id = shift;
+	my $usage = shift;
+	my $options = shift; # may need later, e.g. to refine search
+	
+	my $today = &get_date;
+	print "DEBUG: Today's date is $today\n" if $CMD_OPTIONS{'debug'};
+	
+	# this assumes only one valid subkey of each type...
+	my $subkey_id;
+	my @subkeys = &get_subkeys($key_id);
+	for my $subkey (@subkeys) {
+		if($subkey->{'usage'} eq $usage and
+			!$subkey->{'is_revoked'} and 
+			$subkey->{'valid_until'} gt $today) {
+				$subkey_id = $subkey->{'id'};
+				last;
+		}
+	}
+	
+	return $subkey_id;
+}
+
+sub get_today_signed_keys() {
+	my $max_age = shift;
+	my %key_ids;
+	my $current_key_id;
+	my $today = &get_date;
+		
+	open(my $gpg_output, "gpg --list-sigs --keyid-format 0xlong --with-fingerprint|");
+	while(<$gpg_output>) {
+		if(/Key fingerprint = ([A-F0-9 ]+)$/) {
+			$current_key_id = $1;
+			$current_key_id =~ s/\s//g;
+		} elsif(/^sig \d?\s+0x[A-F0-9]+\s+${today}\s/) {
+			$key_ids{$current_key_id} = 1;
+		}
+	}
+	return keys(%key_ids);
+}
+
+
+################ Expiry harnesses
+
+sub expire_key() {
+	my $key_id = shift;
+	my $expiry = shift;
+	my $passphrase = shift;
+			
+	# GPG transcript
+	# key
+	# expire
+	# $expiry
+	# $passphrase
+	# save
+	
+	&edit_key($key_id, qq[key
+expire
+$expiry
+$passphrase
+save
+]);
+}
+
+sub expire_subkey() { # TODO
+	my $key_id = shift;
+	my $subkey_index = shift;
+	my $expiry = shift;
+	my $passphrase = shift;
+				
+	# GPG transcript
+	# key
+	# key $subkey_index
+	# expire
+	# $expiry
+	# $passphrase
+	# save
+
+	&edit_key($key_id, qq[key
+key $subkey_index
+expire
+$expiry
+$passphrase
+save
+]);
+}
+
+
+################ Revocation harnesses
+
+
+sub revoke_key() {
+	my $key_id = shift;
+	my $passphrase = shift;
+	my %options = shift;
+	
+	my $reason = $options{'reason'};
+	$reason = $reason_none unless $reason;
+	my $dialog = $options{'dialog'};
+	$dialog = '' unless $dialog;
+
+	print qq[ gpg --gen-revoke $key_id ??\n\n];
+
+	# GPG transcript
+	# key (deselect all subkeys)
+	# revkey
+	# confirm
+	# reason
+	# dialog
+	# confirm
+	# $passphrase
+	# save
+
+	&edit_key($key_id, qq[key
+revkey
+y
+$reason
+$dialog
+y
+$passphrase
+save
+]);
+}
+
+sub revoke_subkey() {
+	my $key_id = shift;
+	my $subkey_index = shift;
+	my $passphrase = shift;
+	my %options = shift;
+	
+	my $reason = $options{'reason'};
+	$reason = $reason_none unless $reason;
+	my $dialog = $options{'dialog'};
+	$dialog = '' unless $dialog;
+				
+	# GPG transcript
+	# key (deselect all subkeys)
+	# key $subkey_index
+	# revkey
+	# confirm
+	# $reason
+	# $dialog
+	# confirm
+	# $passphrase
+	# save
+	
+	&edit_key($key_id, qq[key
+key $subkey_index
+revkey
+y
+$reason
+$dialog
+y
+$passphrase
+save
+]);
+}
+
+sub revoke_uid() {
+	my $key_id = shift;
+	my $uid_index = shift;
+	my $passphrase = shift;
+	my %options = shift;
+	
+	my $reason = $options{'reason'};
+	$reason = $reason_none unless $reason;
+	my $dialog = $options{'dialog'};
+	$dialog = '' unless $dialog;
+			
+	# GPG transcript
+	# uid $uid_index
+	# revuid
+	# confirm
+	# $reason
+	# $dialog
+	# confirm
+	# $passphrase
+	# save
+
+	&edit_key($key_id, qq[uid $uid_index
+revuid
+y
+$reason
+$dialog
+y
+$passphrase
+save
+]);
+}
+
+
+################# passphrase
+
+
+sub change_pass() {
+	my $key_id = shift;
+	my $old_passphrase = shift;
+	my $new_passphrase = shift;
+	
+	print qq[\nChanging the passphrase for $key_id\n\n];
+
+	# GPG transcript
+	# passwd
+	# old_pass
+	# new_pass
+	# save
+	
+	&edit_key($key_id, qq[passwd
+$old_passphrase
+$new_passphrase
+save
+]);
+}
+
+
+################# Smartcard harnesses
+
+##########################
+# Smartcard not working  #
+#                        #
+
+sub sc_subkey_write() { #TODO
+	my $key_id = shift;
+	my $options = shift; # hash REF use ->{}
+	
+	# use an options hash because otherwise confusion will be inevitable
+	my $subkey_s = $options->{'s'};
+	my $subkey_e = $options->{'e'};
+	my $subkey_a = $options->{'a'};
+	
+	print qq[ &edit_key << keytocard
+BUT remember to back up subkeys first and then restore after\n\n];
+}
+
+# etc. etc. etc.
+
+#                        #
+#                        #
+##########################
+
+
+####################################################
+############### User selection tools ###############
+####################################################
+
+# rewrite this so it uses get_secret_keys rather than reimplementing
+# need to refactor get_secret_keys for that to be possible tho...
+sub select_key() {
+	my $prompt = shift;
+	my @CH_keys;
+
+	open(my $pipe, 'gpg --list-secret-keys --keyid-format 0xlong --with-fingerprint|') 
+		or die "failed to create gpg process\n";
+	while(<$pipe>) {
+		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		chop;
+		if(/^sec\s+([[:digit:]]+[A-Z]\/0x[a-fA-F0-9]+)\s+([[:digit:]-]+)(\s+\[expires: ([[:digit:]-]+)\])?$/) {
+			print "DEBUG: Secret key found $_\n" if $CMD_OPTIONS{'debug'};
+			my $id = $1;
+			my $created = $2;
+			my $expiry = '';
+			$expiry = $3 if $3;
+			my $fingerprint = <$pipe>;
+			chop $fingerprint;
+			$fingerprint =~ s/^\s+Key fingerprint = //;
+			$fingerprint = &id_filter($fingerprint);
+			my $primuid = <$pipe>;
+			chop $primuid;
+			$primuid =~ s/^uid\s+//;
+			push(@CH_keys,"$fingerprint: $primuid $created$expiry");
+		}
+	}
+	close($pipe);
+
+	my $result = &make_submenu("Select key $prompt", @CH_keys);
+	$result =~ s/^([a-fA-F0-9]+):.*$/$1/ if $result;
+		
+	return $result;
+}
+
+sub select_subkey() {
+	my $key_id = shift;
+	my $prompt = shift;
+	my @CH_subkeys;
+	my $index=0;
+	
+	for my $subkey (@_) {
+		$index++;
+		next if $subkey->{'is_revoked'};
+		
+		# recreate the gpg uid listing format
+		my $id = $subkey->{'id'};
+		my $expiry = $subkey->{'valid_until'};
+		my $usage = $subkey->{'usage'};
+		my $entry = "($index) $id (expires: $expiry) [$usage]";
+		push(@CH_subkeys, $entry);
+	}
+	
+	my $result = &make_submenu(qq[Select subkey of $key_id $prompt], @CH_subkeys);
+	if($result and $result =~ /^\(([[:digit:]]+)\)/) {
+		return $1;
+	}
+}
+
+sub select_uid() { 
+	my $key_id = shift;
+	my $prompt = shift;
+	my @CH_uids;
+	
+	for my $uid (@_) {
+		# recreate the gpg uid listing format
+		my $trust = $uid->{'trust'};
+		my $index = $uid->{'index'};
+		my $default = $uid->{'default'}?'.':' ';
+		my $uid_name = $uid->{'uid'};
+		next unless $trust eq 'ultimate';
+		my $entry = "[$trust] ($index)$default $uid_name";
+		push(@CH_uids, $entry);
+	}
+	
+	my $result = &make_submenu(qq[Select UID of $key_id $prompt], @CH_uids);
+	if($result and $result =~ /^\[[[:alnum:]]+\] \(([[:digit:]]+)\)(\.| ) (.*)$/) {
+		# uid_index, uid
+		return ($1, $3);
+	}
+}
+
+sub find_public_key() {
+	# Quick and dirty method - you must know the exact key ID.
+	# This is probably A Good Thing, as it prevent accidents.
+	my $prompt = shift;
+	my $success = 0;
+	my $key_id = &id_filter(&user_input("Enter LONG key ID or fingerprint $prompt: "));
+	if($key_id =~ /^([a-fA-F0-9]{16}|[a-fA-F0-9]{40})$/) {
+		$success = &download_key($key_id);
+	} else {
+		print qq[That was not a valid LONG key ID or fingerprint\n];
+	}
+	return $success;
+}
+
+sub list_subkeys {
+	my $key_id = shift;
+	print "\nSubkeys of $key_id: \n\n";
+	for my $subkey (@_) {
+		my $id = $subkey->{'id'};
+		my $revoked = $subkey->{'is_revoked'};
+		my $expiry = $subkey->{'valid_until'};
+		$expiry = '          ' unless $expiry;
+		my $usage = $subkey->{'usage'};
+		my $status = $revoked?'REVOKED':'expires';
+		print "$id ($status: $expiry) [$usage]\n";
+	}
+	print "\n";
+}
+
+################################################################
+######################### Menu actions #########################
+################################################################
+
+# Define backup and laptop key actions first, as these are required
+# by &mod_hook
+
+############### Backups
+
+sub SR_clone_to_tails() {
+	print qq[
+Please insert a Tails USB disk.
+	
+If you do not have one, clone this image to a blank USB now:
+Applications -> Tails -> Tails Installer -> Clone and Install
+	
+...and come back to this window when finished.
+
+];
+	
+	&user_input('Hit return to continue: ');
+	system('tails-clone-persistent');
+}
+$actionmap{$LA_clone_to_tails} = \&SR_clone_to_tails;
+
+sub SR_clone_from_tails() {
+	print qq[
+You will need to have booted tails with an administration password.
+If not, hit ctrl-c and reboot tails with an admin password NOW.
+
+Please insert the old Tails USB disk
+
+];
+
+	&user_input('Hit return to continue: ');
+	# pulling requires sudo
+	system('sudo', 'tails-clone-persistent', '--pull');
+}
+$actionmap{$LA_clone_from_tails} = \&SR_clone_from_tails;
+
+sub SR_propagate() {
+	print qq[
+Please insert a Tails USB disk.
+	
+If you do not have one, clone this image to a blank USB now:
+Applications -> Tails -> Tails Installer -> Clone and Install
+	
+...and come back to this window when finished.
+
+];
+
+	&user_input('Hit return to continue: ');
+	system('tails-clone-persistent', '--skel');
+}
+$actionmap{$LA_propagate} = \&SR_propagate;
+
+sub SR_backup_to_file() {
+	### This is ugly as sin. We should use a decent file selector library.
+	my $location_prompt = 'Backup file location';
+	my $location = &ask_with_default($location_prompt, $default_backup_dir);
+	return 1 unless $location;
+	while(! -d $location) {
+		print qq[That directory does not exist\n\n];
+		my $location = &ask_with_default($location_prompt, $default_backup_dir);
+		return 1 unless $location;
+	}
+	my $filename = &ask_with_default('Filename', $default_backup_file);
+	return 1 unless $filename;
+
+	my $date = DateTime->now->iso8601;
+
+	chdir($gpg_location);
+	system('tar', 'cvf', catfile($location, $filename), '.', 
+		'--exclude', 'random_seed'); # don't share randomness
+	print qq[
+Be sure to copy $location/$filename somewhere safe and private. This 
+file is only protected with your passphrase. Hope you made a good one!
+];
+}
+$actionmap{$LA_backup_to_file} = \&SR_backup_to_file;
+
+sub SR_restore_from_file() {
+	return unless &make_confirm("restore your entire PGP config from backup");
+	
+	### This is ugly as sin. We should use a decent file selector library.
+	my $location_prompt = 'Backup file location';
+	my $location = &ask_with_default($location_prompt, $default_backup_dir);
+	return 1 unless $location;
+	while(! -d $location) {
+		print qq[That directory does not exist\n\n];
+		my $location = &ask_with_default($location_prompt, $default_backup_dir);
+		return 1 unless $location;
+	}
+	my $filename = &ask_with_default('Filename', $default_backup_file);
+	return 1 unless $filename;
+	while(! -f catfile($location, $filename)) {
+		print qq[That file does not exist\n\n];
+		my $filename = &ask_with_default($location_prompt, $default_backup_file);
+		return 1 unless $filename;
+	}
+
+	my $date = DateTime->now->iso8601;
+
+	# we can't rename the dir and recreate, because under tails
+	# $gpg_location is a mount point
+	# would love to use rmove_glob but this bug is STILL unfixed:
+	# https://rt.cpan.org/Public/Bug/Display.html?id=59402
+	# have to call system() yet again. *spit*
+	
+	mkdir ("$gpg_location.$date");
+	system("mv $gpg_location/* $gpg_location.$date");
+	chdir($gpg_location);
+	system('tar', 'xvf', catfile($location, $filename));
+	unlink 'random_seed' if -f 'random_seed'; # don't share randomness
+
+	# Then sync with keyservers by first publishing and then downloading
+	return unless &make_yes("resynchronise your restored keys with the keyservers");
+	for my $key_id (&get_secret_keys) {
+		&publish($key_id);
+		&download_key($key_id);
+	}
+}
+$actionmap{$LA_restore_from_file} = \&SR_restore_from_file;
+
+
+############### Laptop keys
+
+
+sub SR_ssh_auth_to_file() {
+	my $redirect = '';
+	
+	my $key_id = shift;
+	$key_id = &select_key('to write to file') unless $key_id;
+	return 1 unless $key_id;
+	
+	my $subkey_id = &get_subkey_id($key_id, 'A');
+	print "DEBUG: Subkey id $subkey_id\n" if $CMD_OPTIONS{'debug'};
+	unless($subkey_id) {
+		print "No valid auth subkey found on key $key_id\n";
+		return 2;
+	}
+	
+	print qq[
+Export an ssh private key from the given auth subkey. This is only 
+necessary if you do not have monkeysphere configured on your client.
+
+];	
+	return unless &make_yes("export your SSH private key to potentially insecure media");
+
+	### This is ugly as sin. We should use a decent file selector library.
+	my $location_prompt = 'SSH private key file location';
+	my $location = &ask_with_default($location_prompt, $default_laptop_key_dir);
+	return 3 unless $location;
+	if(! -d $location) {
+		if(&make_yes(qq[create the directory $location])) {
+			make_path($location);
+			chmod 0700, $location;
+		} else {
+			print qq[Cancelling operation...\n\n];
+			return 4;
+		}
+	}
+
+	my $filename = "$key_id$default_ssh_key_suffix";
+	my $filenamepub = "$key_id$default_ssh_pubkey_suffix";
+	return 5 unless $filename and $filenamepub;
+
+	my $path = catfile($location, $filename);
+	my $pathpub = catfile($location, $filenamepub);
+	return unless &make_yes("export your SSH private key to $path");
+	
+	my $passphrase = &secure_input("Passphrase: ");
+	
+	# touch and set permissions on private key file FIRST
+	open(my $pgp2ssh_output, ">", "$path");
+	close $pgp2ssh_output;
+	chmod 0600, $path;
+	
+	# export the private key
+	# THIS IS BAD, as we (briefly) store the unencrypted key on disk
+	# unfortunately ssh-keygen only edits key files in place #facepalm
+	
+	# TODO: error handling!!!!
+	
+	# we need to supply the passphrase to gpg via STDIN
+	# tried chaining a pair of open2()s, but it all went pete tong
+	# why do I always end up farming out pipe constructions to bash? :-(
+	
+	$redirect = '2>/dev/null' unless $CMD_OPTIONS{'debug'};
+	my $gpg_pid = open(my $gpg_input, "|bash -c 'gpg --batch --passphrase-fd 0 --export-options export-reset-subkey-passwd,export-minimal,no-export-attributes --export-secret-subkeys --no-armor $key_id | openpgp2ssh $subkey_id > $path' $redirect");
+
+	print $gpg_input $passphrase;
+	close $gpg_input;
+	waitpid $gpg_pid, 0;
+	
+	# put the password back on the SSH key
+#	open(my $ssh_keygen, "|ssh-keygen -p -f $path");
+#	print $ssh_keygen "$passphrase\n$passphrase\n";
+#	close $ssh_keygen;
+	# bugger that, it won't even take a passphrase on STDIN
+	# leak leak leak leak leak leak leak leak leak leak leak leak
+	# ssh-keygen really isn't fit for purpose here
+	$redirect = '>/dev/null 2>&1' unless $CMD_OPTIONS{'debug'};
+	my $error = system("ssh-keygen -p -P '' -N $passphrase -f $path $redirect");
+	if($error != 0) {
+		print qq[Failure exporting private key, cleaning up...\n];
+		unlink($path);
+	} else {
+		print qq[Exported private key to $path\n];
+		# now export the public key
+		system("gpg --export $key_id | openpgp2ssh $subkey_id > $pathpub");
+		print qq[Exported public key to $pathpub\n\nDone.\n];
+	} 
+}
+$actionmap{$LA_ssh_auth_to_file} = \&SR_ssh_auth_to_file;
+
+
+sub SR_laptop_to_file() {
+	my $key_id = shift;
+	$key_id = &select_key('to write to file') unless $key_id;
+	return 1 unless $key_id;
+	
+	print qq[
+Laptop keys can be used to perform everyday PGP actions such as 
+decryption, signing and authentication. The only forbidden actions are:
+	a) certifying other people's keys
+	b) modifying your own key
+For this you will require the primary key stored here.
+
+Laptop keys should normally be stored on a removable disk so that they 
+can be imported into another computer without transferring them over a 
+network. You should keep this removable disk safe because the only thing 
+protecting your keys is your passphrase. You did set a strong one? ;-)
+
+A more secure alternative is a PGP smartcard. See:
+	https://en.wikipedia.org/wiki/OpenPGP_card
+
+];
+	return unless &make_yes("export your laptop keys to potentially insecure media");
+	
+	### This is ugly as sin. We should use a decent file selector library.
+	my $location_prompt = 'Laptop key file location';
+	my $location = &ask_with_default($location_prompt, $default_laptop_key_dir);
+	return 1 unless $location;
+	while(! -d $location) {
+		print qq[That directory does not exist\n\n];
+		my $location = &ask_with_default($location_prompt, $default_laptop_key_dir);
+		return 1 unless $location;
+	}
+	
+	my $filename = &ask_with_default('Filename', "$key_id$default_laptop_key_suffix");
+	return 1 unless $filename;
+
+	my $path = catfile($location, $filename);
+	return unless &make_yes("export your laptop keys to $path");
+	system("gpg --export-secret-subkeys $key_id > $path");
+}
+$actionmap{$LA_laptop_to_file} = \&SR_laptop_to_file;
+
+
+##########################
+# Smartcard not working  #
+#                        #
+
+sub SR_laptop_to_smartcard() { # TODO
+	my $key_id = shift;
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	if(! $fresh_smartcard) {
+		# prompt user to see if they're sure they want to continue
+		return 0 unless &prompt_overwrite_old_sc;
+	} else {
+		# should we prompt the user to initialise the smartcard?
+		# we can't call &SR_init_smartcard, as this is defined below, so
+		# &evaluate_choice($LA_init_smartcard);
+		# (is there danger of infinite loops?)
+	}
+	$key_id = &select_key('to write to smartcard') unless $key_id;
+	print qq[ try to automate sending subkeys of $key_id to smartcard
+	this may be difficult, as we normally need to manually match
+	the types of subkey to the correct smartcard register.\n\n];
+	
+	my $subkey_s = 'DEADBEEF';
+	my $subkey_e = 'DEADBEEF';
+	my $subkey_a = 'DEADBEEF';
+	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
+	# 	also populate key id field with address of pubkey
+
+	return 1;
+}
+$actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
+
+#                        #
+#                        #
+##########################
+
+
+############## Modification hook
+
+# &mod_hook should be called any time the secret key is modified
+# This ensures that the user is prompted to update their backups and
+# laptop keys
+
+sub mod_hook() {
+	my $key_id = shift;
+	print qq[<<< SECRET KEY MODIFIED >>>
+	
+YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
+	if($using_tails) {
+		&SR_clone_to_tails;
+	} else {
+		&SR_backup_to_file;
+	}
+	print qq[YOU SHOULD RE-EXPORT YOUR LAPTOP KEYS NOW\n\n]; 
+	&SR_laptop_to_smartcard($key_id);
+	&SR_laptop_to_file($key_id);
+}
+
+
+############### Certification
+
+# Not tested, but should be working
+
+# Emailing out from monkey{scan,sign} on Tails is broken:
+# https://lists.riseup.net/www/arc/monkeysphere/2014-08/msg00012.html
+# We will work around for now.
+
+
+sub SR_cert_scan() {
+	print qq[
+BROKEN - DO NOT USE
+];
+	return 1;
+	
+	print qq[
+NOTE: emailing signed keys to owner is not currently working from within
+Tails, so we will send the signed keys to the keyservers directly.
+];
+	my $my_key_id = &select_key('to sign with');
+	return 0 unless $my_key_id;
+	
+# need to capture monkeyscan output and process somehow - does it emit
+# a signed attachment on STDOUT same as monkeysign? Must test.
+	system('monkeyscan', '-u', $my_key_id, '--no-mail');
+	
+	# Can't tell what key monkeyscan just signed, so we publish any that
+	# were signed today.
+	# This may not work if we happen to sign a key at midnight...!
+# No need to do this if we are capturing monkeyscan output
+#	my @key_ids = &get_today_signed_keys; 
+#	for my $key_id (@key_ids) { 
+#		&publish($key_id);
+#	}
+}
+$actionmap{$LA_cert_scan} = \&SR_cert_scan;
+
+sub SR_cert_manual() {
+	my $key_id = &find_public_key('to certify');
+	return 0 unless $key_id;
+	my $my_key_id = &select_key('to sign with');
+	return 0 unless $my_key_id;
+	print qq[
+NOTE: emailing signed keys to owner is not currently working from within
+Tails, so we will send the signed keys to the keyservers directly.
+];
+
+# Nope, monkeysign doesn't work. Do it the old-fashioned way instead
+#	system('monkeysign', '-u', $my_key_id, $key_id);
+
+	if(&certify($key_id, $my_key_id)) {
+		&publish($key_id);
+	}
+}
+$actionmap{$LA_cert_manual} = \&SR_cert_manual;
+
+sub SR_decert_manual() {
+	my $key_id = &find_public_key('to decertify');
+	if($key_id) {
+		&display_key_info($key_id);
+		if(&make_confirm("revoke all certification signatures on $key_id")) {
+			system('gpg', '--batch', '--yes', '--edit-key', '--keyid-format 0xlong', '--with-fingerprint', $key_id, 'revsig');
+		}
+	} else {
+		print qq[Key not found\n\n];
+	}
+}
+$actionmap{$LA_decert_manual} = \&SR_decert_manual;
+
+
+############### Generation
+
+# All working
+
+sub SR_usedefaults() {
+	print qq[PERSONAL DETAILS\n\n];
+	my $name = &ask_name;
+	my $email = &ask_email;
+	my $passphrase = &ask_passphrase;
+	my $expiry = &ask_expiry;
+	
+	unless(&first_time) {
+		return 0 unless &make_confirm("create an additional primary key on a non-empty keyring");
+	}
+	
+	print qq[
+Name: $name
+Email: $email
+Expiry date: $expiry
+
+];
+	
+	return 0 unless &make_yes('create a new primary key with the above details');
+	my $key_id = &new_primarykey($name, $email, {'expiry'=>$expiry, 'passphrase'=>$passphrase});
+
+	die("Key fingerprint not found in gpg transcript - panic!\n") unless $key_id;
+
+	&new_subkey($key_id, 's', $passphrase, {'expiry'=>$expiry});
+	&new_subkey($key_id, 'e', $passphrase, {'expiry'=>$expiry});
+	&new_subkey($key_id, 'a', $passphrase, {'expiry'=>$expiry});
+	&mod_hook($key_id);
+	if(&make_yes(qq[publish key $key_id])) {
+		&publish($key_id);
+	}
+}
+$actionmap{$LA_usedefaults} = \&SR_usedefaults;
+
+sub SR_gen_advanced() {
+	print("Type 'help' for help, ctrl-c to return to menu\n");
+	system('gpg2', '--gen-key', '--with-fingerprint', '--expert');
+}
+$actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
+
+
+############### Smartcard
+
+
+##########################
+# Smartcard not working  #
+#                        #
+
+sub SR_sc_pin() { # TODO
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	print qq[ run gpg2 --change-pin\n\n];
+}
+$actionmap{$LA_sc_pin} = \&SR_sc_pin;
+
+sub SR_sc_name() { # TODO
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	print qq[ run gpg2 --card-edit\n\n];
+}
+$actionmap{$LA_sc_name} = \&SR_sc_name;
+
+sub SR_sc_lang() { # TODO
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	print qq[ run gpg2 --card-edit\n\n];
+}
+$actionmap{$LA_sc_lang} = \&SR_sc_lang;
+
+sub SR_sc_keylocation() { # TODO
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	print qq[ run gpg2 --card-edit\n\n];
+}
+$actionmap{$LA_sc_keylocation} = \&SR_sc_keylocation;
+
+sub SR_init_smartcard() { # TODO
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	if(! $fresh_smartcard) {
+		# prompt user to see if they're sure they want to continue
+		return 0 unless &prompt_overwrite_old_sc;
+	}
+	print qq[Shouldn't we perform a factory reset first?\n\n];
+	print qq[
+run gpg2 --card-edit in one go, otherwise we'll get prompted for the 
+pin multiple times (check!).
+Also, should we just generate a random admin pin and store it, rather
+than asking the user to set one?\n\n];
+
+	return 1;
+}
+$actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
+
+sub SR_smartcard_advanced() {
+	print("Type 'help' for help, 'quit' to return to menu\n");
+	system('gpg2', '--card-edit', '--with-fingerprint', '--expert');
+}
+$actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
+
+#                        #
+#                        #
+##########################
+
+############### Key info
+
+# all working
+
+sub SR_key_passphrase() {
+	my $key_id = &select_key('to change passphrase for');
+	return 0 unless $key_id;
+	my $old_passphrase = &secure_input('Old passphrase: ');
+	print qq[We really should test the old passphrase before continuing\n\n];
+	my $new_passphrase = &ask_passphrase;
+	&change_pass($key_id, $old_passphrase, $new_passphrase);
+	&mod_hook($key_id); # Need method to force no smartcard update!
+}
+$actionmap{$LA_key_passphrase} = \&SR_key_passphrase;
+
+sub SR_new_uid() {
+	my $key_id = &select_key('to add new UID to');
+	return 0 unless $key_id;
+	my $name = &ask_name;
+	my $email = &ask_email;
+	if(&make_yes(qq[add the UID '$name <$email>' to $key_id])) {
+		my $passphrase = &secure_input('Passphrase: ');
+		&new_uid($key_id, $name, $email, $passphrase);
+#		&mod_hook($key_id);
+		if(&make_yes(qq[republish key $key_id])) {
+			&publish($key_id);
+		}
+	}
+}
+$actionmap{$LA_new_uid} = \&SR_new_uid;
+
+sub SR_revoke_uid() {
+	my $key_id = &select_key('to revoke UID from');
+	return 0 unless $key_id;
+	my @uids = &get_uids($key_id);
+	if ((scalar @uids) > 1) {
+		my ($uid_index, $uid) = &select_uid($key_id, 'to revoke', @uids);
+		return 0 unless $uid;
+		if(&make_yes(qq[revoke the UID '$uid' on $key_id])) {
+			my $passphrase = &secure_input('Passphrase: ');
+			&revoke_uid($key_id, $uid_index, $passphrase);
+#			&mod_hook($key_id);
+			if(&make_yes(qq[republish key $key_id])) {
+				&publish($key_id);
+			}
+		}
+	} else {
+		print qq[Cannot revoke the last UID on $key_id
+You must create a new UID first\n\n];
+	}
+}
+$actionmap{$LA_revoke_uid} = \&SR_revoke_uid;
+
+sub SR_expire_key() {
+	my $key_id = &select_key('to change expiry');
+	return 0 unless $key_id;
+	my $expiry = &ask_expiry;
+	return 0 unless &make_yes("change the expiry on $key_id to $expiry");
+	my $passphrase = &secure_input('Passphrase: ');
+	return 0 unless &expire_key($key_id, $expiry, $passphrase);
+	return 0 unless &make_yes('change the expiry date on all active subkeys to match the primary');
+
+	my $subkey_index=0;
+	foreach my $subkey (&get_subkeys($key_id)) {
+		$subkey_index++;
+		unless($subkey->{'is_revoked'}) {
+			&expire_subkey($key_id, $subkey_index, $expiry, $passphrase);
+		}
+	}
+	&mod_hook($key_id);
+	if(&make_yes(qq[republish key $key_id])) {
+		&publish($key_id);
+	}
+	return 1;
+}
+$actionmap{$LA_expire_key} = \&SR_expire_key;
+
+sub SR_new_subkey() {
+	my $key_id = &select_key('to to add subkey to');
+	return 0 unless $key_id;
+	&list_subkeys($key_id, &get_subkeys($key_id));
+	my $usage = &ask_usage;
+	my $expiry = &ask_expiry;
+	my $passphrase = &secure_input('Passphrase: ');
+	&new_subkey($key_id, $usage, $passphrase, {'expiry'=>$expiry});
+	&mod_hook($key_id);
+	if(&make_yes(qq[republish key $key_id])) {
+		&publish($key_id);
+	}
+}
+$actionmap{$LA_new_subkey} = \&SR_new_subkey;
+
+sub SR_expire_subkey() {
+	my $key_id = &select_key('with subkey to change expiry');
+	return 0 unless $key_id;
+	
+	my @subkeys = &get_subkeys($key_id);
+	my $subkey_index = &select_subkey($key_id, 'to change expiry', @subkeys);
+	return 0 unless $subkey_index;
+	
+	my $expiry = &ask_expiry;
+	my $passphrase = &secure_input('Passphrase: ');
+	
+	&expire_subkey($key_id, $subkey_index, $expiry, $passphrase);
+	&mod_hook($key_id);
+	if(&make_yes(qq[republish key $key_id])) {
+		&publish($key_id);
+	}
+}
+$actionmap{$LA_expire_subkey} = \&SR_expire_subkey;
+
+sub SR_key_advanced() {
+	my $key_id = &select_key('to edit');
+	return 0 unless $key_id;
+	print("Type 'help' for help, 'quit' to return to menu\n");
+	system('gpg2', '--edit-key', '--with-fingerprint', '--expert', $key_id);
+}
+$actionmap{$LA_key_advanced} = \&SR_key_advanced;
+
+
+############## Revocation
+
+# all working
+
+sub SR_revoke_subkey() {
+	print qq[ revoke specific subkey and optionally create a new one\n\n] if $CMD_OPTIONS{'debug'};
+	my $key_id = &select_key('with subkey to revoke');
+	return 0 unless $key_id;
+	
+	my @subkeys = &get_subkeys($key_id);
+	my $subkey_index = &select_subkey($key_id, 'to revoke', @subkeys);
+	return 0 unless $subkey_index;
+	
+	my $subkey = $subkeys[$subkey_index-1];
+	my $subkey_id = $subkey->{'id'};
+	die "Subkey indexing FAIL. Panic!\n" unless $subkey_id;
+	
+	return 0 unless &make_confirm(qq[revoke the subkey ${subkey_id} on key ${key_id}]);
+	my $passphrase = &secure_input('Passphrase: ');
+	
+	die qq[ERROR revoking subkey $subkey_id on $key_id - panic!\n]
+		unless &revoke_subkey($key_id, $subkey_index, $passphrase);
+	print qq[REVOKED SUBKEY ${subkey_id}\n\n];
+	
+	my $usage = $subkey->{'usage'};
+	if(&make_yes(qq[generate a replacement $usage subkey on $key_id])) {
+		my $expiry = $subkey->{'expiry'};
+		&new_subkey($key_id, $usage, $passphrase, {'expiry'=>$expiry});
+		&mod_hook($key_id);
+	}
+	if(&make_yes(qq[republish key $key_id])) {
+		&publish($key_id);
+	}
+}
+$actionmap{$LA_revoke_subkey} = \&SR_revoke_subkey;
+
+sub SR_revoke_primary() {
+	print qq[ the big one. choose a primary key and nuke it\n\n] if $CMD_OPTIONS{'debug'};
+	my $key_id = &select_key('to revoke');
+	return 0 unless &make_confirm(qq[revoke the key ${key_id}]);
+	my $passphrase = &secure_input('Passphrase: ');
+
+	die qq[ERROR revoking key $key_id - panic!\n] 
+		unless &revoke_key($key_id, $passphrase);
+	print qq[REVOKED KEY ${key_id}\n\n];
+	
+	if(&make_confirm(qq[PERMANENTLY publish the revocation of $key_id?])) {
+		&publish($key_id);
+	} else {
+		print qq[IN ORDER TO CONTINUE USING THIS KEY YOU MUST RESTORE FROM BACKUP\n\n];
+		if($using_tails) {
+			# we should give people the choice to restore from file even if using tails
+			&SR_clone_from_tails;
+		} else {
+			&SR_restore_from_file;
+		}
+	}
+}
+$actionmap{$LA_revoke_primary} = \&SR_revoke_primary;
+
+
+############### Help
+
+
+sub SR_getting_started() {
+	my $response;
+	if($using_tails) {
+		$response = &make_submenu('GETTING STARTED', @CH_getting_started);
+	} else {
+		$response = &make_submenu('GETTING STARTED', @CH_getting_started_no_tails);
+	}
+	return unless $response;
+	&evaluate_choice($response);
+}
+$actionmap{$LA_getting_started} = \&SR_getting_started;
+
+
+sub SR_manual() {
+	system ('clear');
+	print qq[
+${program} is a utility to simplify the best practice use of GnuPG
+encryption keys. It is intended to be used OFFLINE with the aid of a
+Tails bootable flash drive (https://tails.boum.org). You can still use
+it with other operating systems, but a) you negate many of the security
+benefits and b) it will complain accordingly every time it starts. To 
+install on Tails, follow the instructions at the project homepage:
+	https://andrewg.com/frith.html
+
+${program} has several command line debugging options available 
+(run `${program} --help` for a list), but the only one you are likely
+to use is `--nopublish`, which suppresses any communication with the
+outside world, allowing you to create temporary keys for test purposes
+without fear of them getting pushed to the keyservers.
+
+${program} is menu-driven. There is no batch processing interface, as 
+all operations are performed using the batch interfaces of other 
+programs, such as gnupg, monkeysphere and openssh-client. There is 
+currently some noise emitted from gnupg's batch interface when carrying
+out certain operations - this is expected, if ugly. I'm working on it...
+];
+	return unless &make_pause();
+	system('clear');
+	print qq[
+${program} manages your GnuPG private keys by offering the following
+services:
+
+* Creation, expiry and revocation of keys, subkeys and IDs
+* Export of subkeys to removable media, e.g. PGP smartcard
+* Certification of other people's keys (web of trust)
+* Upload of public keys to keyservers (requires a network connection)
+* Backup and restore to/from secondary media
+
+It is strongly recommended to use a PGP smartcard for everyday use. 
+These store private subkeys in non-retrievable storage and perform
+decryption and signing operations in a tamper-proof processor on the 
+card itself. You can thereby use your keys as normal (with a few 
+caveats, see next page) on a laptop or desktop computer without ever 
+storing private key material on that computer.
+
+If you do not have a PGP smartcard, or if your device/software does not
+support smartcard use, subkeys can be exported in encrypted form
+and saved to a removable drive. This is obviously less secure, and 
+should only be done if absolutely necessary.
+];
+	return unless &make_pause();
+	system('clear');
+	print qq[
+Exporting your primary private key is NOT supported. This key is used 
+to confirm your identity and the validity of your subkeys. Unlike your
+subkeys, it cannot be easily revoked or replaced in case of compromise,
+and so it is strongly recommended that the primary private key does not
+leave the Tails environment.
+
+Certain operations can thus only ever be performed inside Tails:
+
+* Creating, revoking and changing the expiry of keys, subkeys and IDs
+* Certification of other people's keys (web of trust)
+
+This is because each of these operations requires a fresh signature to 
+be created by the primary private key. If you wish to run ${program} 
+on a non-Tails environment this restriction does not apply, BUT you lose 
+the extra security of keeping your primary private key stored offline. 
+];
+	return unless &make_pause();
+	system('clear');
+	print qq[
+For most users, the Getting Started Wizard should be sufficient to get
+you up and running, so long as you have the following to hand:
+
+* A computer that can boot from USB flash, with two USB ports spare
+* Two flash drives, at least one with Tails and ${program} installed 
+	(8GB recommended)
+* A removable device to store your subkeys
+	(PGP smartcard recommended, or a third flash drive in a pinch)
+
+You will be prompted to insert the second Tails drive to create a
+backup before exporting your laptop keys to a removable device. This 
+backup should be stored in a safe remote location (such as a relative's
+house) and is equivalent to the original. You only need to make a fresh 
+backup after creating new keys or subkeys - everything else can be
+generated again from the info in the public key. 
+];
+	return unless &make_pause();
+	system('clear');
+	print qq[
+For further information, check the project homepage at 
+https://andrewg.com/frith.html
+
+];
+}
+$actionmap{$LA_manual} = \&SR_manual;
+
+
+########################## Main ################################
+
+# Lights, camera, action.
+
+sub main() {
+
+	system ('clear') unless $CMD_OPTIONS{'debug'};
+	print "This is ${program} v${version}\n\n";
+	
+	&parse_options;
+	if($CMD_OPTIONS{'nopublish'}) {
+		print "NOPUBLISH: keys will not be published\n\n";
+	}
+	if($CMD_OPTIONS{'help'}) {
+		&option_help;
+		exit 0;
+	}
+	
+	&tails_test;
+	if($using_tails) {
+		print "Tails detected\n\n";
+		if(! $using_tails_persistence) {
+			print "${program} on tails requires persistence\n\n";
+			# create or mount persistent volume
+			&tails_test;
+		}
+		if(! $using_tails_persistence_gpg) {
+			print "${program} on tails requires persistent GPG\n\n";
+			# configure for gpg
+			$using_tails_persistence_gpg = 1;
+		}
+		if(! $using_tails_persistence_mail) {
+			# Don't complain - there's nothing we can do about this
+			#print "some operations require configuration of persistent mail\n\n";
+			# configure for mail, perhaps
+			$using_tails_persistence_mail = 1; # perhaps
+		}
+		# do something here to make sendmail work as monkeysign expects
+	} else {
+		print qq[${program} is intended to be run from inside a tails live system. While 
+it will work on any computer, you will not benefit from all the security 
+features it provides, such as offline storage of your primary key.\n\n];
+		exit unless &make_warned;
+	}
+		
+	if(&first_time()){
+		print qq[This appears to be the first time you have run ${program}.\n\n];
+		&SR_getting_started;
+	} else {
+		if(&make_yes('refresh your public key(s) from the keyservers')) {
+			foreach my $key_id (&get_secret_keys) {
+				&download_key($key_id);
+			}
+		}
+	}
+	
+	# top level menu
+	for (;;) {
+		system ('clear') unless $CMD_OPTIONS{'debug'};
+		print "This is ${program} v${version}\n\n";
+		&list_secret_keys;
+
+		my $response = $menu->choose(
+			[@CH_top, undef],
+			{
+				prompt => "MAIN MENU\n\n",
+				undef  => 'Exit',
+				layout => 3,
+			}
+		);
+		exit unless $response;
+
+		# each entry is a submenu
+		my $subresponse = '';
+		for(;;) {
+			switch ($response) {
+				case ($LA_certify) {
+					$subresponse = &make_submenu($LA_certify, @CH_certify);
+				}
+				case ($LA_generate) {
+					$subresponse = &make_submenu($LA_generate, @CH_generate);
+				}
+				case ($LA_backup) {
+					if($using_tails) {
+						$subresponse = &make_submenu($LA_backup, @CH_backup);
+					} else {
+						$subresponse = &make_submenu($LA_backup, @CH_backup_no_tails);
+					}
+				}
+				case ($LA_laptop) {
+					$subresponse = &make_submenu($LA_laptop, @CH_laptop);
+				}
+				case ($LA_smartcard) {
+					$subresponse = &make_submenu($LA_smartcard, @CH_smartcard);
+				}
+				case ($LA_modify) {
+					$subresponse = &make_submenu($LA_modify, @CH_modify);
+				}
+				case ($LA_revoke) {
+					$subresponse = &make_submenu($LA_revoke, @CH_revoke);
+				}
+				case ($LA_help) {
+					$subresponse = &make_submenu($LA_help, @CH_help);
+				}
+			}
+		
+			last unless $subresponse;
+			&evaluate_choice($subresponse);
+			&user_input('Hit enter to return to menu: ');
+		}	
+	}
+}
+
+main();
