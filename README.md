@@ -16,7 +16,7 @@ Requirements
 ------------
 
 * A computer that can boot from USB and has two usable USB ports
-* A fresh downloaded image of [Tails](https://tails.boum.org/download/index.en.html)
+* A fresh downloaded image of [Tails](https://tails.boum.org/download/index.en.html) OR a friend who has a copy of frith/Tails that you can borrow
 * Two 8GB flash drives, such as [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
     * A [PGP Smartcard v2](http://shop.kernelconcepts.de/) (optionally with a card reader if your computer(s) lack a built-in reader)
