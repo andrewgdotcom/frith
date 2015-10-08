@@ -33,7 +33,9 @@ Frith does not handle ECC keys (yet!) — support for these is limited in the wi
 Getting started
 ---------------
 
-If you (or a colleague) already have a copy of frith, you can use it to make a fresh one. Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to make a new install of Tails on the first flash drive, then run frith and go to "Backup and Restore" > "Install frith software on a Tails disk". It will prompt you for a disk encryption passphrase - use a very strong one. Boot into the new disk and jump straight to step 9 below.
+If you (or a colleague) already have a copy of frith, you can use it to make a fresh one. 
+<!--Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to make a new install of Tails on the first flash drive, then -->
+Run frith and go to "Backup and Restore" > "Install frith software on another Tails disk". It will prompt you for a disk encryption passphrase - use a very strong one. Boot into the new disk and jump straight to step 9 below.
 
 To start from scratch:
 
@@ -50,7 +52,7 @@ To start from scratch:
 	```
 8. Reboot
 9. When prompted, select "Yes" for persistence and enter the passphrase
-10. Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to install Tails on the second 8GB flash drive. Leave it plugged in
+<!--10. Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to install Tails on the second 8GB flash drive. Leave it plugged in-->
 11. Open a terminal and run 'frith'
 12. Follow the getting started procedure. This will prompt you for your personal details, create a new set of keys and perform a backup to the second Tails drive
 13. When prompted, plug in the smartcard and/or the subkey flash drive
