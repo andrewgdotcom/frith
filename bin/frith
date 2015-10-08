@@ -4,25 +4,7 @@ my $version = '0.1';
 
 ########################################################################
 #
-# TODO LIST: 
-#
-# * Test publication workaround for monkeyscan/monkeysign
-# * Bug #1: tails-clone-persistent -> setuid
-#	* shift all user interaction back in here and change t-c-p to use
-#		command line options
-#	* t-c-p should then be noninteractive - easier to rewrite in C
-#	DONE!
-# * Bug #2: fix monkeyscan to work in some rudimentary fashion
-# * Bug #3: add option to t-c-p to copy a skel dir instead of live
-#	* populate /var/lib/frith/skel - imitate results of manual install
-#	DONE!
-# * Write smartcard handlers and test (need spare smartcard $$$$$$ !)
-# * Better error handling
-# * Better documentation
-# * Make taint-safe
-# * Make gpg shut up
-# * Various refactoring (see inline comments)
-# * Graphical interface! (one thing at a time, bucko...)
+# frith
 #
 ########################################################################
 
