@@ -13,15 +13,15 @@ Requirements
 ------------
 
 * A computer that can boot from USB and has two usable USB ports
-* A fresh downloaded image of Tails
-* Two 8GB flash drives, such as Kingston Data Traveler SE9 (buy in bulk, they're cheap as chips)
+* A fresh downloaded image of [Tails](https://tails.boum.org/download/index.en.html)
+* Two 8GB flash drives, such as [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
-    * A PGP Smartcard v2 (optionally with a card reader if your computer(s) lack a built-in reader)
+    * A [PGP Smartcard v2](http://shop.kernelconcepts.de/) (optionally with a card reader if your computer(s) lack a built-in reader)
     * A third removable drive (for transferring subkeys to devices that don't support smartcards)
 
 Beware that some bulkier USB drives can obstruct adjacent USB ports, preventing a second drive from being connected. It is recommended to use slimline models (such as the one mentioned above) to minimize frustration.
 
-Alternatives to PGP Smartcards exist, such as the YubiKey NEO (see the Debian smartcard support page for a list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
+Alternatives to PGP Smartcards exist, such as the [YubiKey NEO](https://www.yubico.com/2012/12/yubikey-neo-openpgp/) (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
 
 Some devices (smartphones, tablets...) may not be compatible with PGP smartcards (but check out the YubiKey NEO above) — in such cases you will need to save your subkeys to a third removable drive for transfer to the device by other means. This is not as secure as using a smartcard, and should only be done when absolutely necessary.
 
@@ -34,9 +34,9 @@ If you (or a colleague) already have a copy of frith, you can use it to make a f
 
 To start from scratch:
 
-1. Install Tails on the first 8GB flash drive by following their instructions
+1. Install Tails on the first 8GB flash drive by [following their instructions](https://tails.boum.org/doc/first_steps/installation/manual/index.en.html)
 1. Boot into the first drive
-1. Configure a persistent volume as described here. Be sure to use a very strong encryption passphrase. Enable "GnuPG", "APT lists" and "APT packages"
+1. Configure a persistent volume [as described here](https://tails.boum.org/doc/first_steps/persistence/configure/index.en.html). Be sure to use a very strong encryption passphrase. Enable "GnuPG", "APT lists" and "APT packages"
 1. Reboot
 1. When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
 1. Set a temporary administration password and continue
