@@ -3,9 +3,9 @@ Frith
 
 Frith is an EXPERIMENTAL offline utility to simplify PGP public key creation and management. It is an attempt to implement the best possible practice as cribbed from various resources:
 
-* [https://help.riseup.net/en/security/message-security/openpgp/best-practices](OpenPGP Best Practices (riseup.net))
-* [https://alexcabal.com/creating-the-perfect-gpg-keypair/](Creating the perfect GPG keypair (Alex Cabal))
-* [http://spin.atomicobject.com/2013/11/24/secure-gpg-keys-guide/](Generating More Secure GPG Keys: A Step-by-Step Guide (Mike English))
+* [OpenPGP Best Practices (riseup.net)](https://help.riseup.net/en/security/message-security/openpgp/best-practices)
+* [Creating the perfect GPG keypair (Alex Cabal)](https://alexcabal.com/creating-the-perfect-gpg-keypair/)
+* [Generating More Secure GPG Keys: A Step-by-Step Guide (Mike English)](http://spin.atomicobject.com/2013/11/24/secure-gpg-keys-guide/)
 
 Frith is designed so that your master PGP key is never stored on your everyday computer(s), but kept on a (mostly) offline bootable flash drive that only needs to be brought online to certify other users' keys. To this end, frith strongly recommends the use of Tails, a bootable flash drive OS with an (optional) encrypted storage partition. While the anonymisation features of Tails are not strictly required, the Tor layer acts as a firewall for those occasions when frith must be brought online.
 
