@@ -33,11 +33,13 @@ Frith does not handle ECC keys (yet!) — support for these is limited in the wi
 Getting started
 ---------------
 
-If you (or a colleague) already have a copy of frith, you can use it to make a fresh one. 
-<!--Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to make a new install of Tails on the first flash drive, then -->
-Run frith and go to "Backup and Restore" > "Install frith software on another Tails disk". It will prompt you for a disk encryption passphrase - use a very strong one. Boot into the new disk and jump straight to step 9 below.
+### Installing frith if you (or a colleague) already have a copy
 
-To start from scratch:
+1. Run frith and go to "Backup and Restore" > "Install frith software on another Tails disk".
+2. It will prompt you for a disk encryption passphrase - use a very strong one.
+3. Boot into the new disk and jump straight to "First time running frith" below.
+
+### Installing frith from scratch
 
 1. Install Tails on the first 8GB flash drive by [following their instructions](https://tails.boum.org/doc/first_steps/installation/manual/index.en.html)
 2. Boot into the first drive
@@ -50,14 +52,16 @@ To start from scratch:
 	```
 	sudo bash -c "wget -qO - https://andrewg.com/andrewg-codesign.pub | apt-key add - ; cd /live/persistence/TailsData_unlocked; echo frith >> live-additional-software.conf; echo '/etc/apt source=apt/conf' >> persistence.conf; chown tails-persistence-setup:tails-persistence-setup live-additional-software.conf persistence.conf; chmod og= live-additional-software.conf persistence.conf; echo 'deb tor+http://andrewg.com/debian andrewg main' > /etc/apt/sources.list.d/andrewg.list; cp -a /etc/apt apt/conf; apt-get update && apt-get install -y frith"
 	```
-8. Reboot
-9. When prompted, select "Yes" for persistence and enter the passphrase
-<!--10. Use "Applications" > "Tails" > "Tails Installer" > "Clone and install" to install Tails on the second 8GB flash drive. Leave it plugged in-->
-11. Open a terminal and run 'frith'
-12. Follow the getting started procedure. This will prompt you for your personal details, create a new set of keys and perform a backup to the second Tails drive
-13. When prompted, plug in the smartcard and/or the subkey flash drive
-14. Frith will then publish your new public key (unless you started it with the --nopublish option)
-15. You're done!
+8. Reboot and continue to "First time running frith" below
+
+### First time running frith
+
+1. When prompted, select "Yes" for persistence and enter the passphrase
+2. Open a terminal and run 'frith'
+3. Follow the getting started procedure. This will prompt you for your personal details, create a new set of keys and perform a backup to the second Tails drive
+4. When prompted, plug in the smartcard and/or the subkey flash drive
+5. Frith will then publish your new public key (unless you started it with the --nopublish option)
+6. You're done!
 
 Remember to store the second Tails disk in a secure remote location.
 
