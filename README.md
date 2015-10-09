@@ -94,6 +94,12 @@ In such cases you need to boot from one of the Tails drives, perform the operati
 
 Note that in order to use frith, you must enable persistence each time you boot Tails. This is a security feature! (You only need to set the temporary administration password if you are installing frith for the first time)
 
+### Recommended client software
+
+* [Enigmail for Thunderbird](https://www.enigmail.net/)
+* [monkeysphere for openssh](http://web.monkeysphere.info/)
+* [Smartcard pageant for putty](http://smartcard-auth.de/ssh-en.html)
+
 Footnote
 --------
 
