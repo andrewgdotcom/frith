@@ -99,6 +99,7 @@ Note that in order to use frith, you must enable persistence each time you boot 
 * [Enigmail for Thunderbird](https://www.enigmail.net/)
 * [monkeysphere for openssh](http://web.monkeysphere.info/)
 * [Smartcard pageant for putty](http://smartcard-auth.de/ssh-en.html)
+* [pam_ssh_agent_auth for sudo](http://pamsshagentauth.sourceforge.net/)
 
 Footnote
 --------
