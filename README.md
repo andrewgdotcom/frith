@@ -19,7 +19,7 @@ Requirements
 * A fresh downloaded image of [Tails](https://tails.boum.org/download/index.en.html) OR a friend who has a copy of frith/Tails that you can borrow
 * Two 8GB flash drives, such as [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
-    * A [PGP Smartcard v2](http://shop.kernelconcepts.de/) (optionally with a card reader if your computer(s) lack a built-in reader)
+    * A [PGP Smartcard v2](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) (optionally with a [card reader](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) if your computer(s) lack a built-in reader)
     * A third removable drive (for transferring subkeys to devices that don't support smartcards)
 
 Beware that some bulkier USB drives can obstruct adjacent USB ports, preventing a second drive from being connected. It is recommended to use slimline models (such as the one mentioned above) to minimize frustration.
