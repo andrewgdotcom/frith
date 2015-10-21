@@ -102,8 +102,8 @@ Note that in order to use frith, you must enable persistence each time you boot 
 ### Recommended hardware
 
 Smartcards:
-* [OpenPGP Smartcard v2.1](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) — with SIM breakout
-	* [without SIM breakout](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2.html)
+* [OpenPGP Smartcard v2.1](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2.html)
+	* [with SIM breakout](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html)
 
 Smartcard readers:
 * [ACS ACR38T](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable
