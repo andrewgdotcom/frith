@@ -6,6 +6,7 @@ Frith is an EXPERIMENTAL offline utility to simplify PGP public key creation and
 * [OpenPGP Best Practices (riseup.net)](https://help.riseup.net/en/security/message-security/openpgp/best-practices)
 * [Creating the perfect GPG keypair (Alex Cabal)](https://alexcabal.com/creating-the-perfect-gpg-keypair/)
 * [Generating More Secure GPG Keys: A Step-by-Step Guide (Mike English)](http://spin.atomicobject.com/2013/11/24/secure-gpg-keys-guide/)
+* [Debian OpenPGP smartcard guide](https://wiki.debian.org/Smartcards/OpenPGP)
 
 Frith is designed so that your master PGP key is never stored on your everyday computer(s), but kept on a (mostly) offline bootable flash drive that only needs to be brought online to certify other users' keys. To this end, frith strongly recommends the use of Tails, a bootable flash drive OS with an (optional) encrypted storage partition. While the anonymisation features of Tails are not strictly required, the Tor layer acts as a firewall for those occasions when frith must be brought online.
 
@@ -24,7 +25,7 @@ Requirements
 
 Beware that some bulkier USB drives can obstruct adjacent USB ports, preventing a second drive from being connected. It is recommended to use slimline models (such as the one mentioned above) to minimize frustration.
 
-Alternatives to PGP Smartcards exist, such as the [YubiKey NEO](https://www.yubico.com/2012/12/yubikey-neo-openpgp/) (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
+Alternatives to PGP Smartcards exist, such as the [YubiKey NEO](https://www.yubico.com/2012/12/yubikey-neo-openpgp/) (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a partial list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
 
 Some devices (smartphones, tablets...) may not be compatible with PGP smartcards — in such cases you will need to save your subkeys to a third removable drive for transfer to the device by other means. This is not as secure as using a smartcard, and should only be done when absolutely necessary.
 
