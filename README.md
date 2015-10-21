@@ -108,7 +108,7 @@ Smartcards:
 Smartcard readers:
 * [ACS ACR38T](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable
 * [Athena ASEDrive IIIe V3CR](http://en.cryptoshop.com/products/smartcardreader/athena-asedrive-iiie-v3-usb-reader.html) — full-size, external
-* [Broadcom BCM5880](https://www.broadcom.com/products/enterprise-and-network-processors/security/bcm5880) — full-size, internal
+* [Broadcom BCM5880](https://www.broadcom.com/products/enterprise-and-network-processors/security/bcm5880) — full-size, internal (used in DELL laptops, amongst others)
 
 Flash drives:
 * [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_)
