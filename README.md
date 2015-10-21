@@ -26,9 +26,7 @@ Beware that some bulkier USB drives can obstruct adjacent USB ports, preventing 
 
 Alternatives to PGP Smartcards exist, such as the [YubiKey NEO](https://www.yubico.com/2012/12/yubikey-neo-openpgp/) (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
 
-Some devices (smartphones, tablets...) may not be compatible with PGP smartcards (but check out the YubiKey NEO above) — in such cases you will need to save your subkeys to a third removable drive for transfer to the device by other means. This is not as secure as using a smartcard, and should only be done when absolutely necessary.
-
-Frith does not handle ECC keys (yet!) — support for these is limited in the wild so far. This will probably change once software support becomes more widespread.
+Some devices (smartphones, tablets...) may not be compatible with PGP smartcards — in such cases you will need to save your subkeys to a third removable drive for transfer to the device by other means. This is not as secure as using a smartcard, and should only be done when absolutely necessary.
 
 Getting started
 ---------------
@@ -100,6 +98,20 @@ Note that in order to use frith, you must enable persistence each time you boot 
 * [monkeysphere for openssh](http://web.monkeysphere.info/)
 * [Smartcard pageant for putty](http://smartcard-auth.de/ssh-en.html)
 * [pam_ssh_agent_auth for sudo](http://pamsshagentauth.sourceforge.net/)
+
+### Recommended hardware
+
+Smartcards:
+* [OpenPGP Smartcard v2.1](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) — with SIM breakout
+	* [without SIM breakout](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2.html)
+
+Smartcard readers:
+* [ACS ACR38T](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable
+* [Athena ASEDrive IIIe V3CR](http://en.cryptoshop.com/products/smartcardreader/athena-asedrive-iiie-v3-usb-reader.html) — full-size, external
+* [Broadcom BCM5880](https://www.broadcom.com/products/enterprise-and-network-processors/security/bcm5880) — full-size, internal
+
+Flash drives:
+* [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_)
 
 Footnote
 --------
