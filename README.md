@@ -32,7 +32,7 @@ Some devices (smartphones, tablets...) may not be compatible with PGP smartcards
 Getting started
 ---------------
 
-### Installing frith if you (or a colleague) already have a copy
+### Installing frith if you (or someone you trust) already have a copy
 
 1. Run frith and go to "Backup and Restore" > "Install frith software on another Tails disk".
 2. It will prompt you for a disk encryption passphrase - use a very strong one.

@@ -894,7 +894,7 @@ sub get_subkey_id() {
 	my $today = &get_date;
 	print "DEBUG: Today's date is $today\n" if $CMD_OPTIONS{'debug'};
 	
-	my $subkey_id, $subkey_index;
+	my ($subkey_id, $subkey_index);
 	my @subkeys = &get_subkeys($key_id);
 	for my $subkey (@subkeys) {
 		if($subkey->{'usage'} eq $usage and
@@ -1125,9 +1125,9 @@ sub sc_subkey_write() {
 	
 	my $tempfile = "/tmp/${program}-$$.subkeys";
 	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
-	if(!$export_retval or $import_retval != 0) {
+	if(!$export_retval or $export_retval != 0) {
 		die qq[Your subkeys could not be exported to $tempfile
-gpg return code = $!\n
+gpg return code = $export_retval\n
 ];
 	}
 	
@@ -1174,7 +1174,7 @@ save
 	} else {
 		die qq[PANIC! Your subkeys could not be re-imported from $tempfile
 You should restore from backup!
-gpg return code = $!\n
+gpg return code = $import_retval\n
 ];
 	}
 }
@@ -1182,7 +1182,7 @@ gpg return code = $!\n
 sub sc_factory_reset() {
 	open(my $gpg_input, "|gpg-connect-agent") 
 		or die "failed to create gpg-connect-agent process\n";
-	# Factory reset transcript as provided by Werner 
+	# Factory reset transcript as suggested by Werner 
 	# https://lists.gnupg.org/pipermail/gnupg-users/2009-September/037414.html
 	print $gpg_input qq[/hex
 scd serialno
@@ -1196,7 +1196,6 @@ scd apdu 00 20 00 83 08 40 40 40 40 40 40 40 40
 scd apdu 00 20 00 83 08 40 40 40 40 40 40 40 40
 scd apdu 00 e6 00 00
 scd apdu 00 44 00 00
-/echo card has been reset to factory defaults
 ];
 	close $gpg_input;
 }
@@ -1204,18 +1203,18 @@ scd apdu 00 44 00 00
 sub sc_init() {
 	my $options = shift; # hash ref, use ->{}
 	
-	my $def_admin_pin = '12345678';
+	my $def_admin = '12345678';
 	my $def_pin = '123456';
 	
 	my $name = '';
-	my $admin_pin = $def_admin_pin;
+	my $admin = $def_admin;
 	my $pin = $def_pin;
 	my $lang = 'en';
 	my $url = '';
 	
 	$name = $options->{'name'} if $options->{'name'};
 	$pin = $options->{'pin'} if $options->{'pin'};
-	$admin_pin = $options->{'admin_pin'} if $options->{'admin_pin'};
+	$admin = $options->{'admin'} if $options->{'admin'};
 	$lang = $options->{'lang'} if $options->{'lang'};
 	$url = $options->{'url'} if $options->{'url'};
 	
@@ -1239,7 +1238,7 @@ passwd
 1
 $pin
 3
-$admin_pin
+$admin
 q
 ];
 	
@@ -1834,7 +1833,7 @@ sub SR_init_smartcard() { # TODO
 	my $pin = &ask_pin;
 	my $admin = &ask_admin_pin;
 
-	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin_pin});
+	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin});
 }
 $actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
 
