@@ -208,6 +208,7 @@ sub detect_smartcard {
 # values are the full text of the label. (This will be a i18n nightmare)
 # Beware some labels may appear in multiple menus.
 
+# Top menu
 my $LA_certify = 'Certify or decertify another person';
 my $LA_generate = 'Generate new key';
 my $LA_backup = 'Backup and restore';
@@ -217,25 +218,32 @@ my $LA_modify = 'Modify own key';
 my $LA_revoke = 'Revoke own key or subkey';
 my $LA_help = 'Help';
 
+# Sub menus
 my $LA_cert_scan = 'Certify using a QR code (not working)';
 my $LA_cert_manual = 'Certify manually';
 my $LA_decert_manual = 'Decertify a key';
+
 my $LA_usedefaults = 'Generate new key with recommended settings';
 my $LA_gen_advanced = 'Advanced key generation';
+
 my $LA_clone_to_tails = 'Clone to another Tails disk';
 my $LA_backup_to_file = 'Back up to file';
 my $LA_clone_from_tails = 'Clone from existing Tails disk';
 my $LA_restore_from_file = 'Restore from file';
 my $LA_propagate = "Install ${program} software on another Tails disk";
-my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard (not working)';
-my $LA_laptop_to_file = 'Export laptop keys to file';
+
 my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
+my $LA_laptop_to_file = 'Export laptop keys to file';
+my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard (not working)';
+
 my $LA_init_smartcard = 'Initialise smartcard (not working)';
+my $LA_sc_factory_reset = 'Reset a v2.x smartcard to factory default';
 my $LA_smartcard_advanced = 'Advanced smartcard management';
-my $LA_sc_pin = 'Change smartcard PINs (not working)';
+my $LA_sc_pin = 'Change smartcard PIN (not working)';
 my $LA_sc_name = 'Change smartcard owner (not working)';
 my $LA_sc_lang = 'Change smartcard language (not working)';
 my $LA_sc_keylocation = 'Change smartcard public key location (not working)';
+
 my $LA_new_uid = 'Add a new UID to a primary key';
 my $LA_revoke_uid = 'Revoke a UID from a primary key';
 my $LA_key_passphrase = 'Change key passphrase';
@@ -243,8 +251,10 @@ my $LA_expire_key = 'Change the expiry on a primary key';
 my $LA_new_subkey = 'Create a new subkey';
 my $LA_expire_subkey = 'Change the expiry on a subkey';
 my $LA_key_advanced = 'Advanced key management';
+
 my $LA_revoke_subkey = 'Revoke a subkey';
 my $LA_revoke_primary = 'Revoke my primary key';
+
 my $LA_getting_started = 'Getting started wizard';
 my $LA_manual = 'Operations manual';
 
@@ -294,6 +304,7 @@ my @CH_smartcard = (
 	$LA_sc_name,
 	$LA_sc_lang,
 	$LA_sc_keylocation,
+	$LA_sc_factory_reset,
 	$LA_smartcard_advanced,
 );
 my @CH_modify = (
@@ -482,6 +493,24 @@ sub ask_name() {
 		$name = &user_input("Name too short!\nFull Name (minimum 5 chars): ");
 	}
 	return $name;
+}
+
+sub ask_pin() {
+	print qq[Your PIN is used to activate your smartcard each time it is used\n];
+	my $pin = &user_input('PIN (minimum 6 digits, max 32): ');
+	until($pin =~ /^[[:digit:]]{6,32}$/) {
+		$pin = &user_input("Invalid PIN!\nPIN (minimum 6 digits, max 32): ");
+	}
+	return $pin;
+}
+
+sub ask_admin_pin() {
+	print qq[Your Admin PIN is required to update or modify your smartcard\n];
+	my $pin = &user_input('Admin PIN (minimum 8 digits, max 32): ');
+	until($pin =~ /^[[:digit:]]{8,32}$/) {
+		$pin = &user_input("Invalid PIN!\nAdmin PIN (minimum 8 digits, max 32): ");
+	}
+	return $pin;
 }
 
 sub ask_email() {
@@ -808,20 +837,26 @@ sub get_secret_keys() {
 sub get_subkeys() {
 	my $key_id = shift;
 	my @subkeys;
+	
+	my $index = 0;
 
 	open(my $pipe, "gpg --batch --keyid-format 0xlong --with-fingerprint --command-fd 0 --edit-key $key_id </dev/null 2>&1|") 
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
-		if(/^sub\s+[[:digit:]]+[A-Za-z]\/0x([a-fA-F0-9]+)\s+(created: [[:digit:]-]+)\s+((expires|revoked): ([[:digit:]-]+))\s+?usage: ([SEAC]+)\s*$/) {
-			my %subkey_data = (
-				'id' => $1, 
-				'is_revoked' => ($4 eq 'revoked'?1:0), 
-				'valid_until' => $5, 
-				'usage' => $6,
-			);
-			print "DEBUG: subkey found $1 $4 $5 $6\n" if $CMD_OPTIONS{'debug'};
-			push(@subkeys, \%subkey_data);
+		if(/^sub\s+/) {
+			$index++;
+			if(/^sub\s+[[:digit:]]+[A-Za-z]\/0x([a-fA-F0-9]+)\s+(created: [[:digit:]-]+)\s+((expires|revoked): ([[:digit:]-]+))\s+?usage: ([SEAC]+)\s*$/) {
+				my %subkey_data = (
+					'id' => $1, 
+					'is_revoked' => ($4 eq 'revoked'?1:0), 
+					'valid_until' => $5, 
+					'usage' => $6,
+					'index' => $index,
+				);
+				print "DEBUG: subkey found $1 $4 $5 $6\n" if $CMD_OPTIONS{'debug'};
+				push(@subkeys, \%subkey_data);
+			}
 		}
 	}
 	close($pipe);
@@ -854,24 +889,31 @@ sub get_uids() {
 sub get_subkey_id() {
 	my $key_id = shift;
 	my $usage = shift;
-	my $options = shift; # may need later, e.g. to refine search
+	my $options = shift;
 	
 	my $today = &get_date;
 	print "DEBUG: Today's date is $today\n" if $CMD_OPTIONS{'debug'};
 	
-	# this assumes only one valid subkey of each type...
-	my $subkey_id;
+	my $subkey_id, $subkey_index;
 	my @subkeys = &get_subkeys($key_id);
 	for my $subkey (@subkeys) {
 		if($subkey->{'usage'} eq $usage and
 			!$subkey->{'is_revoked'} and 
 			$subkey->{'valid_until'} gt $today) {
 				$subkey_id = $subkey->{'id'};
-				last;
+				$subkey_index = $subkey->{'index'};
+				# by default, return the LAST valid key of a given type
+				# this is usually what we want
+				# but if we want the first one, call `last`. ;-)
+				last if $options->{'first'};
 		}
 	}
 	
-	return $subkey_id;
+	if($options->{'by_index'}) {
+		return $subkey_index;
+	} else {
+		return $subkey_id;
+	}
 }
 
 sub get_today_signed_keys() {
@@ -1069,10 +1111,10 @@ save
 ################# Smartcard harnesses
 
 ##########################
-# Smartcard not working  #
+# Smartcard not tested   #
 #                        #
 
-sub sc_subkey_write() { #TODO
+sub sc_subkey_write() { 
 	my $key_id = shift;
 	my $options = shift; # hash REF use ->{}
 	
@@ -1081,11 +1123,128 @@ sub sc_subkey_write() { #TODO
 	my $subkey_e = $options->{'e'};
 	my $subkey_a = $options->{'a'};
 	
-	print qq[ &edit_key << keytocard
-BUT remember to back up subkeys first and then restore after\n\n];
+	my $tempfile = "/tmp/${program}-$$.subkeys";
+	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
+	if(!$export_retval or $import_retval != 0) {
+		die qq[Your subkeys could not be exported to $tempfile
+gpg return code = $!\n
+];
+	}
+	
+	open(my $gpg_input, "|gpg2 --edit-key $key_id")
+		or die "Could not open gpg2 process\n";
+		
+	# transcript:
+	#key (clear all selections)
+	#key $subkey_s (select signing key)
+	#keytocard (move to card - this deletes the on-disk copy!)
+	#1 (signing key is always in position 1 in card)
+	#key (rinse and repeat)
+	#key $subkey_e
+	#keytocard
+	#2
+	#key
+	#key $subkey_a
+	#keytocard
+	#3
+	#save
+
+	print $gpg_input qq[toggle
+key
+key $subkey_s
+keytocard
+1
+key
+key $subkey_e
+keytocard
+2
+key
+key $subkey_a
+keytocard
+3
+save
+];
+	
+	close $gpg_input;
+	
+	# now restore from backup
+	my $import_retval = system("gpg --import $tempfile");
+	if($import_retval == 0) {
+		unlink $tempfile;
+	} else {
+		die qq[PANIC! Your subkeys could not be re-imported from $tempfile
+You should restore from backup!
+gpg return code = $!\n
+];
+	}
 }
 
-# etc. etc. etc.
+sub sc_factory_reset() {
+	open(my $gpg_input, "|gpg-connect-agent") 
+		or die "failed to create gpg-connect-agent process\n";
+	# Factory reset transcript as provided by Werner 
+	# https://lists.gnupg.org/pipermail/gnupg-users/2009-September/037414.html
+	print $gpg_input qq[/hex
+scd serialno
+scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 83 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 83 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 83 08 40 40 40 40 40 40 40 40
+scd apdu 00 20 00 83 08 40 40 40 40 40 40 40 40
+scd apdu 00 e6 00 00
+scd apdu 00 44 00 00
+/echo card has been reset to factory defaults
+];
+	close $gpg_input;
+}
+
+sub sc_init() {
+	my $options = shift; # hash ref, use ->{}
+	
+	my $def_admin_pin = '12345678';
+	my $def_pin = '123456';
+	
+	my $name = '';
+	my $admin_pin = $def_admin_pin;
+	my $pin = $def_pin;
+	my $lang = 'en';
+	my $url = '';
+	
+	$name = $options->{'name'} if $options->{'name'};
+	$pin = $options->{'pin'} if $options->{'pin'};
+	$admin_pin = $options->{'admin_pin'} if $options->{'admin_pin'};
+	$lang = $options->{'lang'} if $options->{'lang'};
+	$url = $options->{'url'} if $options->{'url'};
+	
+	# if ! gpg2 --card-edit verify $def_pin, call sc_factory_reset ??
+	
+	# run gpg2 --card-edit in one go, otherwise we'll get prompted for the 
+	# pin multiple times (?????)
+	
+	open(my $gpg_input, "|gpg2 --card-edit --command-fd 0")
+		or die "Could not open gpg2 process\n";
+	
+	# THIS TRANSCRIPT IS BROKEN!!!
+	print $gpg_input qq[admin
+name
+$name
+lang
+$lang
+url
+$url
+passwd
+1
+$pin
+3
+$admin_pin
+q
+];
+	
+	close $gpg_input;
+}
 
 #                        #
 #                        #
@@ -1462,47 +1621,9 @@ A more secure alternative is a PGP smartcard. See:
 
 	my $path = catfile($location, $filename);
 	return unless &make_yes("export your laptop keys to $path");
-	system("gpg --export-secret-subkeys $key_id > $path");
+	system("gpg --export-secret-subkeys --armor $key_id > $path");
 }
 $actionmap{$LA_laptop_to_file} = \&SR_laptop_to_file;
-
-
-##########################
-# Smartcard not working  #
-#                        #
-
-sub SR_laptop_to_smartcard() { # TODO
-	my $key_id = shift;
-	while(! &detect_smartcard) {
-		return 0 unless &prompt_insert_sc;
-	}
-	if(! $fresh_smartcard) {
-		# prompt user to see if they're sure they want to continue
-		return 0 unless &prompt_overwrite_old_sc;
-	} else {
-		# should we prompt the user to initialise the smartcard?
-		# we can't call &SR_init_smartcard, as this is defined below, so
-		# &evaluate_choice($LA_init_smartcard);
-		# (is there danger of infinite loops?)
-	}
-	$key_id = &select_key('to write to smartcard') unless $key_id;
-	print qq[ try to automate sending subkeys of $key_id to smartcard
-	this may be difficult, as we normally need to manually match
-	the types of subkey to the correct smartcard register.\n\n];
-	
-	my $subkey_s = 'DEADBEEF';
-	my $subkey_e = 'DEADBEEF';
-	my $subkey_a = 'DEADBEEF';
-	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
-	# 	also populate key id field with address of pubkey
-
-	return 1;
-}
-$actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
-
-#                        #
-#                        #
-##########################
 
 
 ############## Modification hook
@@ -1529,7 +1650,7 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 
 ############### Certification
 
-# Not tested, but should be working
+# Mostly working
 
 # Emailing out from monkey{scan,sign} on Tails is broken:
 # https://lists.riseup.net/www/arc/monkeysphere/2014-08/msg00012.html
@@ -1645,8 +1766,22 @@ $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
 
 
 ##########################
-# Smartcard not working  #
+# Smartcard not tested   #
 #                        #
+
+sub SR_sc_factory_reset() {
+	return 1 unless &make_confirm("reset your v2.x PGP smartcard to factory default - THIS WILL BRICK A v1.x CARD");
+	
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	&sc_factory_reset;
+	print qq[\nPlease remove the card and reinsert to continue...];
+	while(&detect_smartcard) {}
+	while(! &detect_smartcard) {}
+	print "OK\n";
+}
+$actionmap{$LA_sc_factory_reset} = \&SR_sc_factory_reset;
 
 sub SR_sc_pin() { # TODO
 	while(! &detect_smartcard) {
@@ -1656,29 +1791,32 @@ sub SR_sc_pin() { # TODO
 }
 $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 
-sub SR_sc_name() { # TODO
-	while(! &detect_smartcard) {
-		return 0 unless &prompt_insert_sc;
-	}
-	print qq[ run gpg2 --card-edit\n\n];
-}
-$actionmap{$LA_sc_name} = \&SR_sc_name;
+# Not immediately necessary
+#sub SR_sc_name() { # TODO
+#	while(! &detect_smartcard) {
+#		return 0 unless &prompt_insert_sc;
+#	}
+#	print qq[ run gpg2 --card-edit\n\n];
+#}
+#$actionmap{$LA_sc_name} = \&SR_sc_name;
 
-sub SR_sc_lang() { # TODO
-	while(! &detect_smartcard) {
-		return 0 unless &prompt_insert_sc;
-	}
-	print qq[ run gpg2 --card-edit\n\n];
-}
-$actionmap{$LA_sc_lang} = \&SR_sc_lang;
+# Not immediately necessary
+#sub SR_sc_lang() { # TODO
+#	while(! &detect_smartcard) {
+#		return 0 unless &prompt_insert_sc;
+#	}
+#	print qq[ run gpg2 --card-edit\n\n];
+#}
+#$actionmap{$LA_sc_lang} = \&SR_sc_lang;
 
-sub SR_sc_keylocation() { # TODO
-	while(! &detect_smartcard) {
-		return 0 unless &prompt_insert_sc;
-	}
-	print qq[ run gpg2 --card-edit\n\n];
-}
-$actionmap{$LA_sc_keylocation} = \&SR_sc_keylocation;
+# Not immediately necessary
+#sub SR_sc_keylocation() { # TODO
+#	while(! &detect_smartcard) {
+#		return 0 unless &prompt_insert_sc;
+#	}
+#	print qq[ run gpg2 --card-edit\n\n];
+#}
+#$actionmap{$LA_sc_keylocation} = \&SR_sc_keylocation;
 
 sub SR_init_smartcard() { # TODO
 	while(! &detect_smartcard) {
@@ -1688,16 +1826,38 @@ sub SR_init_smartcard() { # TODO
 		# prompt user to see if they're sure they want to continue
 		return 0 unless &prompt_overwrite_old_sc;
 	}
-	print qq[Shouldn't we perform a factory reset first?\n\n];
-	print qq[
-run gpg2 --card-edit in one go, otherwise we'll get prompted for the 
-pin multiple times (check!).
-Also, should we just generate a random admin pin and store it, rather
-than asking the user to set one?\n\n];
 
-	return 1;
+	# should we just generate a random admin pin and store it, rather
+	# than asking the user to set one?
+
+	my $name = &ask_name;
+	my $pin = &ask_pin;
+	my $admin = &ask_admin_pin;
+
+	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin_pin});
 }
 $actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
+
+sub SR_laptop_to_smartcard() { 
+	my $key_id = shift;
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	if(! $fresh_smartcard) {
+		# prompt user to see if they're sure they want to continue
+		return 0 unless &prompt_overwrite_old_sc;
+	}
+	$key_id = &select_key('to write to smartcard') unless $key_id;
+	
+	# Now get the indexes (NOT IDs!) of each valid subkey
+	my $subkey_s = &get_subkey_id($key_id, 'S', {'by_index' => 1});
+	my $subkey_e = &get_subkey_id($key_id, 'E', {'by_index' => 1});
+	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
+	
+	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
+	# should we also populate key id field with address of pubkey?
+}
+$actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
 
 sub SR_smartcard_advanced() {
 	print("Type 'help' for help, 'quit' to return to menu\n");
@@ -1708,6 +1868,7 @@ $actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
 #                        #
 #                        #
 ##########################
+
 
 ############### Key info
 
@@ -2007,17 +2168,18 @@ $actionmap{$LA_manual} = \&SR_manual;
 # Lights, camera, action.
 
 sub main() {
-
+	&parse_options;
+	
 	system ('clear') unless $CMD_OPTIONS{'debug'};
 	print "This is ${program} v${version}\n\n";
 	
-	&parse_options;
-	if($CMD_OPTIONS{'nopublish'}) {
-		print "NOPUBLISH: keys will not be published\n\n";
-	}
 	if($CMD_OPTIONS{'help'}) {
 		&option_help;
 		exit 0;
+	}
+	
+	if($CMD_OPTIONS{'nopublish'}) {
+		print "NOPUBLISH: keys will not be published\n\n";
 	}
 	
 	&tails_test;
