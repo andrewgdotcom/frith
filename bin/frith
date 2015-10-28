@@ -213,7 +213,7 @@ my $LA_certify = 'Certify or decertify another person';
 my $LA_generate = 'Generate new key';
 my $LA_backup = 'Backup and restore';
 my $LA_laptop = 'Export laptop keys for use';
-my $LA_smartcard = 'Smartcard management (nothing here works yet)';
+my $LA_smartcard = 'Smartcard management';
 my $LA_modify = 'Modify own key';
 my $LA_revoke = 'Revoke own key or subkey';
 my $LA_help = 'Help';
@@ -234,15 +234,15 @@ my $LA_propagate = "Install ${program} software on another Tails disk";
 
 my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
 my $LA_laptop_to_file = 'Export laptop keys to file';
-my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard (not working)';
+my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard';
 
-my $LA_init_smartcard = 'Initialise smartcard (not working)';
+my $LA_init_smartcard = 'Initialise smartcard';
 my $LA_sc_factory_reset = 'Reset a v2.x smartcard to factory default';
 my $LA_smartcard_advanced = 'Advanced smartcard management';
-my $LA_sc_pin = 'Change smartcard PIN (not working)';
-my $LA_sc_name = 'Change smartcard owner (not working)';
-my $LA_sc_lang = 'Change smartcard language (not working)';
-my $LA_sc_keylocation = 'Change smartcard public key location (not working)';
+my $LA_sc_pin = 'Change smartcard PIN';
+my $LA_sc_name = 'Change smartcard owner';
+my $LA_sc_lang = 'Change smartcard language';
+my $LA_sc_keylocation = 'Change smartcard public key location';
 
 my $LA_new_uid = 'Add a new UID to a primary key';
 my $LA_revoke_uid = 'Revoke a UID from a primary key';
@@ -301,9 +301,9 @@ my @CH_smartcard = (
 	$LA_init_smartcard,
 	$LA_laptop_to_smartcard,
 	$LA_sc_pin,
-	$LA_sc_name,
-	$LA_sc_lang,
-	$LA_sc_keylocation,
+#	$LA_sc_name,		# not implemented
+#	$LA_sc_lang,		# not implemented
+#	$LA_sc_keylocation,	# not implemented
 	$LA_sc_factory_reset,
 	$LA_smartcard_advanced,
 );
@@ -440,8 +440,8 @@ sub prompt_overwrite_old_sc() {
 	my $response = $menu->choose(
 		[undef, 'Overwrite smartcard'],
 		{
-			prompt => "PGP Smartcard appears to be already in use\n\n",
-			undef  => 'Continue without smartcard',
+			prompt => "PGP Smartcard appears to contain user data\n\n",
+			undef  => 'Do not use smartcard',
 			layout => 3,
 		}
 	);
@@ -530,7 +530,7 @@ sub ask_email() {
 sub ask_expiry() {
 	print qq[It is strongly recommended to set an expiry date on all PGP keys.
 This ensures that lost keys will not remain valid forever. Expiry dates
-can be extended even after they have passed.\n\n];
+can be extended retrospectively.\n\n];
 	my $expiry_prompt = "Expires in (suffix d,w,m,y OR date as YYYY-MM-DD, default $default_expiry): ";
 	my $expiry = &user_input($expiry_prompt);
 	while($expiry !~ /^(\d+[dwmy]|\d\d\d\d-\d\d-\d\d|)$/) {
@@ -552,7 +552,7 @@ sub ask_usage() {
 }
 
 sub ask_passphrase() {
-	print(q[A passphrase will be used to protect your keys.
+	print(q[A passphrase will be used to protect your private keys.
 
 The passphrase should contain at least 16 characters, and at least one 
 non-alphanumeric character, such as punctuation.
@@ -1123,6 +1123,8 @@ sub sc_subkey_write() {
 	my $subkey_e = $options->{'e'};
 	my $subkey_a = $options->{'a'};
 	
+	my $admin = &secure_input("Smartcard admin pin: ");
+	
 	my $tempfile = "/tmp/${program}-$$.subkeys";
 	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
 	if(!$export_retval or $export_retval != 0) {
@@ -1133,6 +1135,8 @@ gpg return code = $export_retval\n
 	
 	open(my $gpg_input, "|gpg2 --edit-key $key_id")
 		or die "Could not open gpg2 process\n";
+		
+	# TRANSCRIPT IS BROKEN - we need to supply $admin at some point...
 		
 	# transcript:
 	#key (clear all selections)
@@ -1218,8 +1222,6 @@ sub sc_init() {
 	$lang = $options->{'lang'} if $options->{'lang'};
 	$url = $options->{'url'} if $options->{'url'};
 	
-	# if ! gpg2 --card-edit verify $def_pin, call sc_factory_reset ??
-	
 	# run gpg2 --card-edit in one go, otherwise we'll get prompted for the 
 	# pin multiple times (?????)
 	
@@ -1235,10 +1237,12 @@ $lang
 url
 $url
 passwd
-1
-$pin
 3
+$def_admin
 $admin
+1
+$admin
+$pin
 q
 ];
 	
@@ -1536,7 +1540,7 @@ necessary if you do not have monkeysphere configured on your client.
 	my $pathpub = catfile($location, $filenamepub);
 	return unless &make_yes("export your SSH private key to $path");
 	
-	my $passphrase = &secure_input("Passphrase: ");
+	my $passphrase = &secure_input("Key passphrase: ");
 	
 	# touch and set permissions on private key file FIRST
 	open(my $pgp2ssh_output, ">", "$path");
@@ -1821,18 +1825,21 @@ sub SR_init_smartcard() { # TODO
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
 	}
-	if(! $fresh_smartcard) {
-		# prompt user to see if they're sure they want to continue
-		return 0 unless &prompt_overwrite_old_sc;
-	}
+	
+# detecting a fresh smartcard is hit and miss. Just assume it isn't.
+#	if(! $fresh_smartcard) {
+#		# prompt user to see if they're sure they want to continue
+#		return 0 unless &prompt_overwrite_old_sc;
+#	}
 
-	# should we just generate a random admin pin and store it, rather
-	# than asking the user to set one?
-
+	# reset to factory because we need to know default admin pin
+	# use menu subroutine so that user gets prompted
+	&SR_sc_factory_reset;
+	
 	my $name = &ask_name;
 	my $pin = &ask_pin;
 	my $admin = &ask_admin_pin;
-
+	
 	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin});
 }
 $actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
@@ -1854,7 +1861,6 @@ sub SR_laptop_to_smartcard() {
 	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
 	
 	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
-	# should we also populate key id field with address of pubkey?
 }
 $actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
 
@@ -1890,7 +1896,7 @@ sub SR_new_uid() {
 	my $name = &ask_name;
 	my $email = &ask_email;
 	if(&make_yes(qq[add the UID '$name <$email>' to $key_id])) {
-		my $passphrase = &secure_input('Passphrase: ');
+		my $passphrase = &secure_input('Key passphrase: ');
 		&new_uid($key_id, $name, $email, $passphrase);
 #		&mod_hook($key_id);
 		if(&make_yes(qq[republish key $key_id])) {
@@ -1908,7 +1914,7 @@ sub SR_revoke_uid() {
 		my ($uid_index, $uid) = &select_uid($key_id, 'to revoke', @uids);
 		return 0 unless $uid;
 		if(&make_yes(qq[revoke the UID '$uid' on $key_id])) {
-			my $passphrase = &secure_input('Passphrase: ');
+			my $passphrase = &secure_input('Key passphrase: ');
 			&revoke_uid($key_id, $uid_index, $passphrase);
 #			&mod_hook($key_id);
 			if(&make_yes(qq[republish key $key_id])) {
@@ -1927,7 +1933,7 @@ sub SR_expire_key() {
 	return 0 unless $key_id;
 	my $expiry = &ask_expiry;
 	return 0 unless &make_yes("change the expiry on $key_id to $expiry");
-	my $passphrase = &secure_input('Passphrase: ');
+	my $passphrase = &secure_input('Key passphrase: ');
 	return 0 unless &expire_key($key_id, $expiry, $passphrase);
 	return 0 unless &make_yes('change the expiry date on all active subkeys to match the primary');
 
@@ -1952,7 +1958,7 @@ sub SR_new_subkey() {
 	&list_subkeys($key_id, &get_subkeys($key_id));
 	my $usage = &ask_usage;
 	my $expiry = &ask_expiry;
-	my $passphrase = &secure_input('Passphrase: ');
+	my $passphrase = &secure_input('Key passphrase: ');
 	&new_subkey($key_id, $usage, $passphrase, {'expiry'=>$expiry});
 	&mod_hook($key_id);
 	if(&make_yes(qq[republish key $key_id])) {
@@ -1970,7 +1976,7 @@ sub SR_expire_subkey() {
 	return 0 unless $subkey_index;
 	
 	my $expiry = &ask_expiry;
-	my $passphrase = &secure_input('Passphrase: ');
+	my $passphrase = &secure_input('Key passphrase: ');
 	
 	&expire_subkey($key_id, $subkey_index, $expiry, $passphrase);
 	&mod_hook($key_id);
@@ -2007,7 +2013,7 @@ sub SR_revoke_subkey() {
 	die "Subkey indexing FAIL. Panic!\n" unless $subkey_id;
 	
 	return 0 unless &make_confirm(qq[revoke the subkey ${subkey_id} on key ${key_id}]);
-	my $passphrase = &secure_input('Passphrase: ');
+	my $passphrase = &secure_input('Key passphrase: ');
 	
 	die qq[ERROR revoking subkey $subkey_id on $key_id - panic!\n]
 		unless &revoke_subkey($key_id, $subkey_index, $passphrase);
@@ -2029,7 +2035,7 @@ sub SR_revoke_primary() {
 	print qq[ the big one. choose a primary key and nuke it\n\n] if $CMD_OPTIONS{'debug'};
 	my $key_id = &select_key('to revoke');
 	return 0 unless &make_confirm(qq[revoke the key ${key_id}]);
-	my $passphrase = &secure_input('Passphrase: ');
+	my $passphrase = &secure_input('Key passphrase: ');
 
 	die qq[ERROR revoking key $key_id - panic!\n] 
 		unless &revoke_key($key_id, $passphrase);
