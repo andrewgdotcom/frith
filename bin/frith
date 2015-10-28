@@ -236,6 +236,7 @@ my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
 my $LA_laptop_to_file = 'Export laptop keys to file';
 my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard';
 
+my $LA_sc_status = 'Print smartcard status';
 my $LA_init_smartcard = 'Initialise smartcard';
 my $LA_sc_factory_reset = 'Reset a v2.x smartcard to factory default';
 my $LA_smartcard_advanced = 'Advanced smartcard management';
@@ -298,8 +299,9 @@ my @CH_laptop = (
 	$LA_ssh_auth_to_file,
 );
 my @CH_smartcard = (
-	$LA_init_smartcard,
 	$LA_laptop_to_smartcard,
+	$LA_sc_status,
+	$LA_init_smartcard,
 	$LA_sc_pin,
 #	$LA_sc_name,		# not implemented
 #	$LA_sc_lang,		# not implemented
@@ -1772,6 +1774,15 @@ $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
 # Smartcard not tested   #
 #                        #
 
+sub SR_sc_status() {
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	
+	system('gpg2', '--card-status');	
+}
+$actionmap{$LA_sc_status} = \&SR_sc_status;
+
 sub SR_sc_factory_reset() {
 	return 1 unless &make_confirm("reset your v2.x PGP smartcard to factory default - THIS WILL BRICK A v1.x CARD");
 	
@@ -1786,11 +1797,57 @@ sub SR_sc_factory_reset() {
 }
 $actionmap{$LA_sc_factory_reset} = \&SR_sc_factory_reset;
 
-sub SR_sc_pin() { # TODO
+sub SR_init_smartcard() { 
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
 	}
-	print qq[ run gpg2 --change-pin\n\n];
+	
+# detecting a fresh smartcard is hit and miss. Just assume it isn't.
+#	if(! $fresh_smartcard) {
+#		# prompt user to see if they're sure they want to continue
+#		return 0 unless &prompt_overwrite_old_sc;
+#	}
+
+	# reset to factory because we need to know default admin pin
+	# use menu subroutine so that user gets prompted
+	&SR_sc_factory_reset;
+	
+	my $name = &ask_name;
+	my $pin = &ask_pin;
+	my $admin = &ask_admin_pin;
+	
+	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin});
+	
+	# now show the user what they just did
+	&SR_sc_status;
+}
+$actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
+
+sub SR_laptop_to_smartcard() { 
+	my $key_id = shift;
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	if(! $fresh_smartcard) {
+		# prompt user to see if they're sure they want to continue
+		return 0 unless &prompt_overwrite_old_sc;
+	}
+	$key_id = &select_key('to write to smartcard') unless $key_id;
+	
+	# Now get the indexes (NOT IDs!) of each valid subkey
+	my $subkey_s = &get_subkey_id($key_id, 'S', {'by_index' => 1});
+	my $subkey_e = &get_subkey_id($key_id, 'E', {'by_index' => 1});
+	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
+	
+	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
+}
+$actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
+
+sub SR_sc_pin() { 
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
+	system('gpg2', '--change-pin');
 }
 $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 
@@ -1821,50 +1878,10 @@ $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 #}
 #$actionmap{$LA_sc_keylocation} = \&SR_sc_keylocation;
 
-sub SR_init_smartcard() { # TODO
-	while(! &detect_smartcard) {
-		return 0 unless &prompt_insert_sc;
-	}
-	
-# detecting a fresh smartcard is hit and miss. Just assume it isn't.
-#	if(! $fresh_smartcard) {
-#		# prompt user to see if they're sure they want to continue
-#		return 0 unless &prompt_overwrite_old_sc;
-#	}
-
-	# reset to factory because we need to know default admin pin
-	# use menu subroutine so that user gets prompted
-	&SR_sc_factory_reset;
-	
-	my $name = &ask_name;
-	my $pin = &ask_pin;
-	my $admin = &ask_admin_pin;
-	
-	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin});
-}
-$actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
-
-sub SR_laptop_to_smartcard() { 
-	my $key_id = shift;
-	while(! &detect_smartcard) {
-		return 0 unless &prompt_insert_sc;
-	}
-	if(! $fresh_smartcard) {
-		# prompt user to see if they're sure they want to continue
-		return 0 unless &prompt_overwrite_old_sc;
-	}
-	$key_id = &select_key('to write to smartcard') unless $key_id;
-	
-	# Now get the indexes (NOT IDs!) of each valid subkey
-	my $subkey_s = &get_subkey_id($key_id, 'S', {'by_index' => 1});
-	my $subkey_e = &get_subkey_id($key_id, 'E', {'by_index' => 1});
-	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
-	
-	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
-}
-$actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
-
 sub SR_smartcard_advanced() {
+	while(! &detect_smartcard) {
+		return 0 unless &prompt_insert_sc;
+	}
 	print("Type 'help' for help, 'quit' to return to menu\n");
 	system('gpg2', '--card-edit', '--with-fingerprint', '--expert');
 }
