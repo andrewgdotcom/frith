@@ -499,7 +499,7 @@ sub ask_name() {
 
 sub ask_name_separates() {
 	my $surname = &user_input('Surname: ');
-	while(length($name) == 0) {
+	while(length($surname) == 0) {
 		$surname = &user_input("Name too short!\nSurname: ");
 	}
 	my $name = &user_input('Given name: ');
@@ -517,7 +517,7 @@ sub ask_pin() {
 	do {
 		$pin = &secure_input('PIN (minimum 6 digits, max 32): ');
 		until($pin =~ /^[[:digit:]]{6,32}$/) {
-			$passphrase = &secure_input("Invalid PIN!\nPIN (minimum 6 digits, max 32): ");
+			$pin = &secure_input("Invalid PIN!\nPIN (minimum 6 digits, max 32): ");
 		}
 		$confirm = &secure_input('Confirm: ');
 		print "\nConfirmation does not match\n" unless $pin eq $confirm;
@@ -535,7 +535,7 @@ sub ask_admin_pin() {
 	do {
 		$pin = &secure_input('Admin PIN (minimum 8 digits, max 32): ');
 		until($pin =~ /^[[:digit:]]{8,32}$/) {
-			$passphrase = &secure_input("Invalid Admin PIN!\nPIN (minimum 8 digits, max 32): ");
+			$pin = &secure_input("Invalid Admin PIN!\nPIN (minimum 8 digits, max 32): ");
 		}
 		$confirm = &secure_input('Confirm: ');
 		print "\nConfirmation does not match\n" unless $pin eq $confirm;
@@ -1443,13 +1443,20 @@ Please insert the old Tails USB disk
 $actionmap{$LA_clone_from_tails} = \&SR_clone_from_tails;
 
 sub SR_propagate() {
+#	print qq[
+#Please insert a Tails USB disk.
+#	
+#If you do not have one, clone this image to a blank USB now:
+#Applications -> Tails -> Tails Installer -> Clone and Install
+#	
+#...and come back to this window when finished.
+#
+#];
 	print qq[
 Please insert a Tails USB disk.
-	
-If you do not have one, clone this image to a blank USB now:
-Applications -> Tails -> Tails Installer -> Clone and Install
-	
-...and come back to this window when finished.
+
+If you do not have one, you will be prompted to insert a new USB disk.
+This should be >=8GB.
 
 ];
 
@@ -1815,7 +1822,7 @@ sub SR_sc_status() {
 $actionmap{$LA_sc_status} = \&SR_sc_status;
 
 sub SR_sc_factory_reset() {
-	return 1 unless &make_confirm("reset your v2.x PGP smartcard to factory default - THIS WILL BRICK A v1.x CARD");
+	return 1 unless &make_confirm("reset your v2.x PGP smartcard to factory default (THIS WILL BRICK A v1.x CARD)");
 	
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
