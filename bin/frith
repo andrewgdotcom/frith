@@ -186,6 +186,7 @@ sub detect_smartcard {
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		chop;
 		if(/^Name of cardholder: [not set]$/) {
 			$success = 1;
 			$fresh_smartcard = 1;
@@ -1850,7 +1851,6 @@ sub SR_init_smartcard() {
 		return 0 unless &prompt_insert_sc;
 	}
 	
-# detecting a fresh smartcard is hit and miss.
 	if(! $fresh_smartcard) {
 		# prompt user to see if they're sure they want to continue
 		return 0 unless &prompt_overwrite_old_sc;
@@ -1890,10 +1890,11 @@ sub SR_laptop_to_smartcard() {
 	my $subkey_e = &get_subkey_id($key_id, 'E', {'by_index' => 1});
 	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
 	
-	my $admin = &secure_input("Smartcard admin pin: ");
-	my $passphrase = &secure_input("Key passphrase: ");
+# These aren't needed, because gpg2 wants to do its own thing
+#	my $admin = &secure_input("Smartcard admin pin: ");
+#	my $passphrase = &secure_input("Key passphrase: ");
 
-	&sc_subkey_write($key_id, {'admin' => $admin, 'passphrase' => $passphrase,
+	&sc_subkey_write($key_id, {#'admin' => $admin, 'passphrase' => $passphrase,
 		's' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
 }
 $actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
