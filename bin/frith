@@ -166,8 +166,8 @@ sub tails_test {
 
 sub first_time {
 	my $num_keys = 0;
-	open(my $pipe, 'gpg2 --list-secret-keys --keyid-format 0xlong --with-fingerprint 2>/dev/null |') 
-		or die "failed to create gpg2 process\n";
+	open(my $pipe, 'gpg --list-secret-keys --keyid-format 0xlong --with-fingerprint 2>/dev/null |') 
+		or die "failed to create gpg process\n";
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
 		$num_keys ++ if(/^sec/);
@@ -182,8 +182,8 @@ my $fresh_smartcard = 0;
 sub detect_smartcard {
 	my $success = 0;
 	my $sigs = 'n/a';
-	open(my $pipe, 'gpg2 --card-status 2>/dev/null |') 
-		or die "failed to create gpg2 process\n";
+	open(my $pipe, 'gpg --card-status 2>/dev/null |') 
+		or die "failed to create gpg process\n";
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
 		if(s/^Signature counter : (\d+)$/$1/) {
@@ -497,21 +497,51 @@ sub ask_name() {
 	return $name;
 }
 
-sub ask_pin() {
-	print qq[Your PIN is used to activate your smartcard each time it is used\n];
-	my $pin = &user_input('PIN (minimum 6 digits, max 32): ');
-	until($pin =~ /^[[:digit:]]{6,32}$/) {
-		$pin = &user_input("Invalid PIN!\nPIN (minimum 6 digits, max 32): ");
+sub ask_name_separates() {
+	my $surname = &user_input('Surname: ');
+	while(length($name) == 0) {
+		$surname = &user_input("Name too short!\nSurname: ");
 	}
+	my $name = &user_input('Given name: ');
+	while(length($name) == 0) {
+		$name = &user_input("Name too short!\nGiven name: ");
+	}
+	return ($name, $surname);
+}
+
+sub ask_pin() {
+	my $pin;
+	my $confirm;
+	
+	print qq[Your PIN is used to activate your smartcard each time it is used\n];
+	do {
+		$pin = &secure_input('PIN (minimum 6 digits, max 32): ');
+		until($pin =~ /^[[:digit:]]{6,32}$/) {
+			$passphrase = &secure_input("Invalid PIN!\nPIN (minimum 6 digits, max 32): ");
+		}
+		$confirm = &secure_input('Confirm: ');
+		print "\nConfirmation does not match\n" unless $pin eq $confirm;
+		
+	} until($pin eq $confirm);
+	
 	return $pin;
 }
 
 sub ask_admin_pin() {
+	my $pin;
+	my $confirm;
+	
 	print qq[Your Admin PIN is required to update or modify your smartcard\n];
-	my $pin = &user_input('Admin PIN (minimum 8 digits, max 32): ');
-	until($pin =~ /^[[:digit:]]{8,32}$/) {
-		$pin = &user_input("Invalid PIN!\nAdmin PIN (minimum 8 digits, max 32): ");
-	}
+	do {
+		$pin = &secure_input('Admin PIN (minimum 8 digits, max 32): ');
+		until($pin =~ /^[[:digit:]]{8,32}$/) {
+			$passphrase = &secure_input("Invalid Admin PIN!\nPIN (minimum 8 digits, max 32): ");
+		}
+		$confirm = &secure_input('Confirm: ');
+		print "\nConfirmation does not match\n" unless $pin eq $confirm;
+		
+	} until($pin eq $confirm);
+	
 	return $pin;
 }
 
@@ -623,7 +653,7 @@ sub certify() {
 	my $my_key_id = shift;
 	print qq[DEBUG: certifying key $key_id with key $my_key_id\n] if $CMD_OPTIONS{'debug'};
 
-	return system('gpg2', '--sign-key', '--local-user', $my_key_id, $key_id);
+	return system('gpg', '--sign-key', '--local-user', $my_key_id, $key_id);
 }
 
 ############### Upload, download harnesses
@@ -635,7 +665,7 @@ sub publish() {
 	if($CMD_OPTIONS{'nopublish'}) {
 		print qq[NOPUBLISH: no data will be published, skipping\n];
 	} else {
-		system('gpg2', '--send-keys', $key_id);
+		system('gpg', '--send-keys', $key_id);
 	}
 }
 
@@ -1135,8 +1165,8 @@ gpg return code = $export_retval\n
 ];
 	}
 	
-	open(my $gpg_input, "|gpg2 --edit-key $key_id")
-		or die "Could not open gpg2 process\n";
+	open(my $gpg_input, "|gpg --edit-key $key_id")
+		or die "Could not open gpg process\n";
 		
 	# TRANSCRIPT IS BROKEN - we need to supply $admin at some point...
 		
@@ -1186,12 +1216,11 @@ gpg return code = $import_retval\n
 }
 
 sub sc_factory_reset() {
-	open(my $gpg_input, "|gpg-connect-agent") 
-		or die "failed to create gpg-connect-agent process\n";
+	open(my $gpg_input, "|gpg-agent --server") 
+		or die "failed to create gpg-agent process\n";
 	# Factory reset transcript as suggested by Werner 
 	# https://lists.gnupg.org/pipermail/gnupg-users/2009-September/037414.html
-	print $gpg_input qq[/hex
-scd serialno
+	print $gpg_input qq[scd serialno
 scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
 scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
 scd apdu 00 20 00 81 08 40 40 40 40 40 40 40 40
@@ -1212,40 +1241,42 @@ sub sc_init() {
 	my $def_admin = '12345678';
 	my $def_pin = '123456';
 	
-	my $name = '';
+	my $name = 'Mr';
+	my $surname = 'Nobody';
 	my $admin = $def_admin;
 	my $pin = $def_pin;
 	my $lang = 'en';
-	my $url = '';
 	
 	$name = $options->{'name'} if $options->{'name'};
+	$surname = $options->{'surname'} if $options->{'surname'};
 	$pin = $options->{'pin'} if $options->{'pin'};
 	$admin = $options->{'admin'} if $options->{'admin'};
 	$lang = $options->{'lang'} if $options->{'lang'};
-	$url = $options->{'url'} if $options->{'url'};
 	
-	# run gpg2 --card-edit in one go, otherwise we'll get prompted for the 
+	# run gpg --card-edit in one go, otherwise we'll get prompted for the 
 	# pin multiple times (?????)
 	
-	open(my $gpg_input, "|gpg2 --card-edit --command-fd 0")
-		or die "Could not open gpg2 process\n";
+	open(my $gpg_input, "|gpg --card-edit --command-fd 0")
+		or die "Could not open gpg process\n";
 	
-	# THIS TRANSCRIPT IS BROKEN!!!
 	print $gpg_input qq[admin
-name
-$name
-lang
-$lang
-url
-$url
 passwd
 3
 $def_admin
 $admin
-1
 $admin
+1
+$def_pin
+$pin
 $pin
 q
+name
+$surname
+$name
+$admin
+lang
+$lang
+quit
 ];
 	
 	close $gpg_input;
@@ -1762,7 +1793,7 @@ $actionmap{$LA_usedefaults} = \&SR_usedefaults;
 
 sub SR_gen_advanced() {
 	print("Type 'help' for help, ctrl-c to return to menu\n");
-	system('gpg2', '--gen-key', '--with-fingerprint', '--expert');
+	system('gpg', '--gen-key', '--with-fingerprint', '--expert');
 }
 $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
 
@@ -1779,7 +1810,7 @@ sub SR_sc_status() {
 		return 0 unless &prompt_insert_sc;
 	}
 	
-	system('gpg2', '--card-status');	
+	system('gpg', '--card-status');	
 }
 $actionmap{$LA_sc_status} = \&SR_sc_status;
 
@@ -1812,11 +1843,11 @@ sub SR_init_smartcard() {
 	# use menu subroutine so that user gets prompted
 	&SR_sc_factory_reset;
 	
-	my $name = &ask_name;
+	my ($name, $surname) = &ask_name_separates;
 	my $pin = &ask_pin;
 	my $admin = &ask_admin_pin;
 	
-	&sc_init({'name' => $name, 'pin' => $pin, 'admin' => $admin});
+	&sc_init({'name' => $name, 'surname' => $surname, 'pin' => $pin, 'admin' => $admin});
 	
 	# now show the user what they just did
 	&SR_sc_status;
@@ -1828,7 +1859,10 @@ sub SR_laptop_to_smartcard() {
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
 	}
-	if(! $fresh_smartcard) {
+	if($fresh_smartcard) {
+		# initialise the smartcard
+		&SR_init_smartcard;
+	} else {
 		# prompt user to see if they're sure they want to continue
 		return 0 unless &prompt_overwrite_old_sc;
 	}
@@ -1847,7 +1881,7 @@ sub SR_sc_pin() {
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
 	}
-	system('gpg2', '--change-pin');
+	system('gpg', '--change-pin');
 }
 $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 
@@ -1856,7 +1890,7 @@ $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 #	while(! &detect_smartcard) {
 #		return 0 unless &prompt_insert_sc;
 #	}
-#	print qq[ run gpg2 --card-edit\n\n];
+#	print qq[ run gpg --card-edit\n\n];
 #}
 #$actionmap{$LA_sc_name} = \&SR_sc_name;
 
@@ -1865,7 +1899,7 @@ $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 #	while(! &detect_smartcard) {
 #		return 0 unless &prompt_insert_sc;
 #	}
-#	print qq[ run gpg2 --card-edit\n\n];
+#	print qq[ run gpg --card-edit\n\n];
 #}
 #$actionmap{$LA_sc_lang} = \&SR_sc_lang;
 
@@ -1874,7 +1908,7 @@ $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 #	while(! &detect_smartcard) {
 #		return 0 unless &prompt_insert_sc;
 #	}
-#	print qq[ run gpg2 --card-edit\n\n];
+#	print qq[ run gpg --card-edit\n\n];
 #}
 #$actionmap{$LA_sc_keylocation} = \&SR_sc_keylocation;
 
@@ -1883,7 +1917,7 @@ sub SR_smartcard_advanced() {
 		return 0 unless &prompt_insert_sc;
 	}
 	print("Type 'help' for help, 'quit' to return to menu\n");
-	system('gpg2', '--card-edit', '--with-fingerprint', '--expert');
+	system('gpg', '--card-edit', '--with-fingerprint', '--expert');
 }
 $actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
 
@@ -2007,7 +2041,7 @@ sub SR_key_advanced() {
 	my $key_id = &select_key('to edit');
 	return 0 unless $key_id;
 	print("Type 'help' for help, 'quit' to return to menu\n");
-	system('gpg2', '--edit-key', '--with-fingerprint', '--expert', $key_id);
+	system('gpg', '--edit-key', '--with-fingerprint', '--expert', $key_id);
 }
 $actionmap{$LA_key_advanced} = \&SR_key_advanced;
 
