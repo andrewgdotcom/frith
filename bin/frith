@@ -186,6 +186,10 @@ sub detect_smartcard {
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		if(/^Name of cardholder: [not set]$/) {
+			$success = 1;
+			$fresh_smartcard = 1;
+		}
 		if(s/^Signature counter : (\d+)$/$1/) {
 			$success = 1;
 			$sigs = $_;
@@ -193,7 +197,6 @@ sub detect_smartcard {
 		}
 	}
 	close($pipe);
-	$fresh_smartcard = ($success and $sigs eq '0');
 	print "DEBUG: Card $success: Signature count $sigs: Freshness $fresh_smartcard\n" if $CMD_OPTIONS{'debug'};
 	return $success;
 }
@@ -1154,12 +1157,11 @@ sub sc_subkey_write() {
 	my $subkey_s = $options->{'s'};
 	my $subkey_e = $options->{'e'};
 	my $subkey_a = $options->{'a'};
-	
-	my $admin = &secure_input("Smartcard admin pin: ");
+	my $admin = $options->{'admin'};
 	
 	my $tempfile = "/tmp/${program}-$$.subkeys";
 	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
-	if(!$export_retval or $export_retval != 0) {
+	if($export_retval) {
 		die qq[Your subkeys could not be exported to $tempfile
 gpg return code = $export_retval\n
 ];
@@ -1808,10 +1810,6 @@ $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
 ############### Smartcard
 
 
-##########################
-# Smartcard not tested   #
-#                        #
-
 sub SR_sc_status() {
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
@@ -1828,6 +1826,9 @@ sub SR_sc_factory_reset() {
 		return 0 unless &prompt_insert_sc;
 	}
 	&sc_factory_reset;
+	
+	# Sometimes this goes a little screwy. Do we need to insert a wait
+	# condition or something?
 	print qq[\nPlease remove the card and reinsert to continue...];
 	while(&detect_smartcard) {}
 	while(! &detect_smartcard) {}
@@ -1840,15 +1841,15 @@ sub SR_init_smartcard() {
 		return 0 unless &prompt_insert_sc;
 	}
 	
-# detecting a fresh smartcard is hit and miss. Just assume it isn't.
-#	if(! $fresh_smartcard) {
-#		# prompt user to see if they're sure they want to continue
-#		return 0 unless &prompt_overwrite_old_sc;
-#	}
-
-	# reset to factory because we need to know default admin pin
-	# use menu subroutine so that user gets prompted
-	&SR_sc_factory_reset;
+# detecting a fresh smartcard is hit and miss.
+	if(! $fresh_smartcard) {
+		# prompt user to see if they're sure they want to continue
+		return 0 unless &prompt_overwrite_old_sc;
+		
+		# reset to factory because we need to know default admin pin
+		# use menu subroutine so that user gets prompted
+		&SR_sc_factory_reset;
+	}
 	
 	my ($name, $surname) = &ask_name_separates;
 	my $pin = &ask_pin;
@@ -1870,8 +1871,8 @@ sub SR_laptop_to_smartcard() {
 		# initialise the smartcard
 		&SR_init_smartcard;
 	} else {
-		# prompt user to see if they're sure they want to continue
-		return 0 unless &prompt_overwrite_old_sc;
+#		# prompt user to see if they're sure they want to continue
+#		return 0 unless &prompt_overwrite_old_sc;
 	}
 	$key_id = &select_key('to write to smartcard') unless $key_id;
 	
@@ -1880,7 +1881,10 @@ sub SR_laptop_to_smartcard() {
 	my $subkey_e = &get_subkey_id($key_id, 'E', {'by_index' => 1});
 	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
 	
-	&sc_subkey_write($key_id, {'s' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
+	my $admin = &secure_input("Smartcard admin pin: ");
+	
+	&sc_subkey_write($key_id, {'admin' => $admin,
+		's' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
 }
 $actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
 
@@ -1927,10 +1931,6 @@ sub SR_smartcard_advanced() {
 	system('gpg', '--card-edit', '--with-fingerprint', '--expert');
 }
 $actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
-
-#                        #
-#                        #
-##########################
 
 
 ############### Key info
