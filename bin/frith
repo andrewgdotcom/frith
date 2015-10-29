@@ -182,8 +182,12 @@ my $fresh_smartcard = 0;
 sub detect_smartcard {
 	my $success = 0;
 	my $sigs = 'n/a';
-	open(my $pipe, 'gpg --card-status 2>/dev/null |') 
-		or die "failed to create gpg process\n";
+	
+	# if we use --batch, then it doesn't prompt to insert a card
+	# that's what we want, as we want to detect the card and handle
+	# such cases ourselves
+	open(my $pipe, 'gpg --card-status --batch 2>/dev/null |') 
+		or return 0;
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
 		chop;
@@ -1837,9 +1841,8 @@ sub SR_sc_factory_reset() {
 	}
 	&sc_factory_reset;
 	
-	# Sometimes this goes a little screwy. Do we need to insert a wait
-	# condition or something?
-	print qq[\nPlease remove the card and reinsert to continue...];
+	print qq[\nPlease remove the card and reinsert...];
+	# Sometimes this goes a little screwy.
 	while(&detect_smartcard) {}
 	while(! &detect_smartcard) {}
 	print "OK\n";
