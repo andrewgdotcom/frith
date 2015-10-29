@@ -1145,9 +1145,6 @@ save
 
 ################# Smartcard harnesses
 
-##########################
-# Smartcard not tested   #
-#                        #
 
 sub sc_subkey_write() { 
 	my $key_id = shift;
@@ -1157,64 +1154,80 @@ sub sc_subkey_write() {
 	my $subkey_s = $options->{'s'};
 	my $subkey_e = $options->{'e'};
 	my $subkey_a = $options->{'a'};
-	my $admin = $options->{'admin'};
+#	my $passphrase = $options->{'passphrase'};
+#	my $admin = $options->{'admin'};
+
+	# DON'T RUN 'save' and subkeys should stay on disk!
+	# https://lists.gnupg.org/pipermail/gnupg-users/2011-August/042750.html
 	
-	my $tempfile = "/tmp/${program}-$$.subkeys";
-	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
-	if($export_retval) {
-		die qq[Your subkeys could not be exported to $tempfile
-gpg return code = $export_retval\n
-];
-	}
+#	my $tempfile = "/tmp/${program}-$$.subkeys";	
+#	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
+#	if($export_retval) {
+#		die qq[Your subkeys could not be exported to $tempfile
+#gpg return code = $export_retval\n
+#];
+#	}
 	
-	open(my $gpg_input, "|gpg --edit-key $key_id")
-		or die "Could not open gpg process\n";
+	# this is the only time that we MUST use gpg2, because gpg v1 does
+	# not support 4096 bit keys on smartcards
+	# unfortunately this means the user is prompted for the key passphrase
+	# AND the admin pin three times in sequence, as we cannot pipe them
+	
+	open(my $gpg_input, '|-', 'gpg2', '--batch', '--yes', '--edit-key', 
+		'--command-fd', '0', $key_id)
+		or die "Could not open gpg2 process\n";
 		
-	# TRANSCRIPT IS BROKEN - we need to supply $admin at some point...
-		
-	# transcript:
+	#toggle (show subkeys)
 	#key (clear all selections)
 	#key $subkey_s (select signing key)
 	#keytocard (move to card - this deletes the on-disk copy!)
 	#1 (signing key is always in position 1 in card)
+	# (blank - sometimes we are asked if we want to overwrite)
 	#key (rinse and repeat)
 	#key $subkey_e
 	#keytocard
 	#2
+	# 
 	#key
 	#key $subkey_a
 	#keytocard
 	#3
-	#save
-
+	# 
+	#q (quit)
+	#n (don't save changes, i.e. don't delete subkeys from disk)
+	
 	print $gpg_input qq[toggle
 key
 key $subkey_s
 keytocard
 1
+
 key
 key $subkey_e
 keytocard
 2
+
 key
 key $subkey_a
 keytocard
 3
-save
+
+q
+n
 ];
 	
 	close $gpg_input;
 	
-	# now restore from backup
-	my $import_retval = system("gpg --import $tempfile");
-	if($import_retval == 0) {
-		unlink $tempfile;
-	} else {
-		die qq[PANIC! Your subkeys could not be re-imported from $tempfile
-You should restore from backup!
-gpg return code = $import_retval\n
-];
-	}
+#	# now restore from backup
+#	my $import_retval = system("gpg --import $tempfile");
+#	if($import_retval == 0) {
+#		unlink $tempfile;
+#	} else {
+#		die qq[PANIC! Your subkeys could not be re-imported from $tempfile
+#You should restore from backup!
+#gpg return code = $import_retval\n
+#];
+#	}
 }
 
 sub sc_factory_reset() {
@@ -1283,10 +1296,6 @@ quit
 	
 	close $gpg_input;
 }
-
-#                        #
-#                        #
-##########################
 
 
 ####################################################
@@ -1882,8 +1891,9 @@ sub SR_laptop_to_smartcard() {
 	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
 	
 	my $admin = &secure_input("Smartcard admin pin: ");
-	
-	&sc_subkey_write($key_id, {'admin' => $admin,
+	my $passphrase = &secure_input("Key passphrase: ");
+
+	&sc_subkey_write($key_id, {'admin' => $admin, 'passphrase' => $passphrase,
 		's' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
 }
 $actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
