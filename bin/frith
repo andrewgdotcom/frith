@@ -1236,7 +1236,8 @@ n
 }
 
 sub sc_factory_reset() {
-	open(my $pgp_input, "|gpg-connect-agent")
+	my $gpg_input;
+	open($gpg_input, "|gpg-connect-agent")
 		or open($gpg_input, "|gpg-agent --server") 
 		or die "failed to create gpg-connect-agent or gpg-agent process\n";
 	# Factory reset transcript as suggested by Werner 
