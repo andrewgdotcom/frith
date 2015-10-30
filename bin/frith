@@ -166,7 +166,7 @@ sub tails_test {
 
 sub first_time {
 	my $num_keys = 0;
-	open(my $pipe, 'gpg --list-secret-keys --keyid-format 0xlong --with-fingerprint 2>/dev/null |') 
+	open(my $pipe, 'gpg --no-use-agent --list-secret-keys --keyid-format 0xlong --with-fingerprint 2>/dev/null |') 
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
@@ -187,7 +187,7 @@ sub detect_smartcard {
 	# if we use --batch, then it doesn't prompt to insert a card
 	# that's what we want, as we want to detect the card and handle
 	# such cases ourselves
-	open(my $pipe, 'gpg --card-status --batch 2>/dev/null |') 
+	open(my $pipe, 'gpg --no-use-agent --card-status --batch 2>/dev/null |') 
 		or return 0;
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
@@ -650,7 +650,7 @@ sub edit_key() {
 	# Nope, this doesn't seem to work. How do we get gpg to shut up?
 	my $redirect = $CMD_OPTIONS{'debug'}?'':'>/dev/null 2>&1';
 	
-	open(my $gpg_input, "|gpg --edit-key --keyid-format 0xlong --with-fingerprint --command-fd 0 --expert $key_id $redirect") 
+	open(my $gpg_input, "|gpg --no-use-agent --edit-key --keyid-format 0xlong --with-fingerprint --command-fd 0 --expert $key_id $redirect") 
 		or die "failed to create gpg process\n";
 		
 	print $gpg_input $transcript;
@@ -737,7 +737,7 @@ sub new_primarykey() {
 	# of the new key later, otherwise we'll have no idea which key we
 	# just created
 	my $tempname = "/tmp/${program}-$$";
-	open(my $gpg_input, "|gpg --gen-key --keyid-format 0xlong --with-fingerprint --command-fd 0 --expert >$tempname 2>&1") 
+	open(my $gpg_input, "|gpg --no-use-agent --gen-key --keyid-format 0xlong --with-fingerprint --command-fd 0 --expert >$tempname 2>&1") 
 		or die "failed to create gpg process\n";
 		
 	# GPG transcript. Note that when using --command-fd 0 it DOES NOT
@@ -1039,7 +1039,7 @@ sub revoke_key() {
 	my $dialog = $options{'dialog'};
 	$dialog = '' unless $dialog;
 
-	print qq[ gpg --gen-revoke $key_id ??\n\n];
+	print qq[ gpg --no-use-agent --gen-revoke $key_id ??\n\n];
 
 	# GPG transcript
 	# key (deselect all subkeys)
@@ -1166,33 +1166,26 @@ sub sc_subkey_write() {
 	my $subkey_a = $options->{'a'};
 #	my $passphrase = $options->{'passphrase'};
 #	my $admin = $options->{'admin'};
-
-	# DON'T RUN 'save' and subkeys should stay on disk!
-	# https://lists.gnupg.org/pipermail/gnupg-users/2011-August/042750.html
-	
-#	my $tempfile = "/tmp/${program}-$$.subkeys";	
-#	my $export_retval = system("gpg --export-secret-subkeys --armor $key_id > $tempfile");
-#	if($export_retval) {
-#		die qq[Your subkeys could not be exported to $tempfile
-#gpg return code = $export_retval\n
-#];
-#	}
-	
+		
 	# this is the only time that we MUST use gpg2, because gpg v1 does
 	# not support 4096 bit keys on smartcards
 	# unfortunately this means the user is prompted for the key passphrase
-	# AND the admin pin three times in sequence, as we cannot pipe them
+	# AND the admin pin many times, as we cannot pipe them on stdin
+	
+	print qq[You will be prompted several times for the key passphrase and the card
+admin PIN. This is a limitation of gpg. Sorry.
+];
 	
 	open(my $gpg_input, '|-', 'gpg2', '--batch', '--yes', '--edit-key', 
 		'--command-fd', '0', $key_id)
 		or die "Could not open gpg2 process\n";
 		
-	#toggle (show subkeys)
+	#toggle (show secret keys)
 	#key (clear all selections)
 	#key $subkey_s (select signing key)
-	#keytocard (move to card - this deletes the on-disk copy!)
-	#1 (signing key is always in position 1 in card)
-	# (blank - sometimes we are asked if we want to overwrite)
+	#keytocard (move to card)
+	#1 (signing key is always in position 1, encrypt=2, auth=3)
+	# (sometimes it might ask for confirm - newline is a safe response)
 	#key (rinse and repeat)
 	#key $subkey_e
 	#keytocard
@@ -1204,8 +1197,10 @@ sub sc_subkey_write() {
 	#3
 	# 
 	#q (quit)
-	#n (don't save changes, i.e. don't delete subkeys from disk)
-	
+	#n (don't save changes, i.e. don't delete moved subkeys from disk)
+		
+	# https://lists.gnupg.org/pipermail/gnupg-users/2011-August/042750.html
+
 	print $gpg_input qq[toggle
 key
 key $subkey_s
@@ -1227,17 +1222,6 @@ n
 ];
 	
 	close $gpg_input;
-	
-#	# now restore from backup
-#	my $import_retval = system("gpg --import $tempfile");
-#	if($import_retval == 0) {
-#		unlink $tempfile;
-#	} else {
-#		die qq[PANIC! Your subkeys could not be re-imported from $tempfile
-#You should restore from backup!
-#gpg return code = $import_retval\n
-#];
-#	}
 }
 
 sub sc_factory_reset() {
@@ -1289,7 +1273,7 @@ sub sc_init() {
 	# run gpg --card-edit in one go, otherwise we'll get prompted for the 
 	# pin multiple times (?????)
 	
-	open(my $gpg_input, "|gpg --card-edit --command-fd 0")
+	open(my $gpg_input, "|gpg --no-use-agent --card-edit --command-fd 0")
 		or die "Could not open gpg process\n";
 	
 	print $gpg_input qq[admin
