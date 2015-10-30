@@ -1236,8 +1236,9 @@ n
 }
 
 sub sc_factory_reset() {
-	open(my $gpg_input, "|gpg-agent --server") 
-		or die "failed to create gpg-agent process\n";
+	open(my $pgp_input, "|gpg-connect-agent")
+		or open($gpg_input, "|gpg-agent --server") 
+		or die "failed to create gpg-connect-agent or gpg-agent process\n";
 	# Factory reset transcript as suggested by Werner 
 	# https://lists.gnupg.org/pipermail/gnupg-users/2009-September/037414.html
 	print $gpg_input qq[scd serialno
