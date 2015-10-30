@@ -1238,7 +1238,7 @@ n
 sub sc_factory_reset() {
 	my $gpg_input;
 	# test to see if gpg-agent is being used
-	if(system('gpg-connect-agent /bye')) {
+	if(system('gpg-connect-agent /bye')==0) {
 		open($gpg_input, "|gpg-connect-agent")
 			or die "failed to create gpg-connect-agent process\n";
 	} else {
