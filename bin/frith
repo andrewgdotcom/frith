@@ -181,7 +181,8 @@ my $fresh_smartcard = 0;
 
 sub detect_smartcard {
 	my $success = 0;
-	my $sigs = 'n/a';
+	my $sigs = 0;
+	$fresh_smartcard = 0;
 	
 	# if we use --batch, then it doesn't prompt to insert a card
 	# that's what we want, as we want to detect the card and handle
@@ -191,17 +192,21 @@ sub detect_smartcard {
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
 		chop;
-		if(/^Name of cardholder: [not set]$/) {
+		if(/^Name of cardholder: \[not set\]$/) {
 			$success = 1;
 			$fresh_smartcard = 1;
+			print "DEBUG: Unset name\n" if $CMD_OPTIONS{'debug'};
 		}
 		if(s/^Signature counter : (\d+)$/$1/) {
 			$success = 1;
 			$sigs = $_;
+			# a card cannot be fresh if it has sigs
+			$fresh_smartcard = 0 if $sigs > 0;
 			last;
 		}
 	}
 	close($pipe);
+	
 	print "DEBUG: Card $success: Signature count $sigs: Freshness $fresh_smartcard\n" if $CMD_OPTIONS{'debug'};
 	return $success;
 }
