@@ -80,6 +80,8 @@ my $default_backup_file = 'gnupg.tar';
 
 my $gpg_location = catfile(home(),'.gnupg');
 
+my $skel_location = '/var/lib/frith/skel';
+
 
 ###############
 # Houskeeping #
@@ -1474,7 +1476,7 @@ This should be >=8GB.
 ];
 
 	&user_input('Hit return to continue: ');
-	system('tails-clone-persistent', '--skel');
+	system('tails-clone-persistent', "--skel=$skel_location");
 }
 $actionmap{$LA_propagate} = \&SR_propagate;
 
