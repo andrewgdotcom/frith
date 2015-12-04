@@ -109,7 +109,7 @@ Smartcards:
 
 Smartcard readers:
 
-* [ACS ACR38T](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable ([drivers](http://www.acs.com.hk/en/driver/4/acr38-smart-card-reader/))
+* [ACS ACR38T](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable ([drivers](http://www.acs.com.hk/en/driver/4/acr38t-smart-card-reader/))
 * [Athena ASEDrive IIIe V3CR](http://en.cryptoshop.com/products/smartcardreader/athena-asedrive-iiie-v3-usb-reader.html) — full-size, external (not recommended for SIM breakout cards as they can jam)
 * [Broadcom BCM5880](https://www.broadcom.com/products/enterprise-and-network-processors/security/bcm5880) — full-size, internal (used in DELL laptops, amongst others)
 
