@@ -81,7 +81,7 @@ If you saved your subkeys to a flash disk, you can install them on your everyday
 gpg --import FILENAME
 ```
 
-Where FILENAME is the name of the file that you saved. If you want to use iPGMail on iOS, you should upload this file to Dropbox so that the app can find it. This is not ideal, so deleting the file immediately afterwards is strongly advised.
+Where FILENAME is the name of the file that you saved. If you want to use iPGMail on iOS, you should upload this file to Dropbox so that the app can find it. This is not ideal, so deleting the file immediately afterwards is strongly advised. (note: iPGMail does not yet support laptop subkeys without the primary, but with luck this will change soon)
 
 Frith is then only required when you want to do one of the following:
 
