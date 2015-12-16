@@ -5,13 +5,11 @@ BINPREFIX = $(PREFIX)/usr/bin
 LIBPREFIX = $(PREFIX)/var/lib/frith
 SKEL = $(LIBPREFIX)/skel
 
-all: src/tcp-helper
+all: 
+	echo
 
 $(BINPREFIX) $(LIBPREFIX) $(SKEL):
 	sudo mkdir -p $@
-
-src/tcp-helper:
-	(cd src && make)
 
 install: all $(BINPREFIX) $(LIBPREFIX) $(SKEL)
 	sudo cp bin/frith $(BINPREFIX)/
