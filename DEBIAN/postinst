@@ -4,7 +4,7 @@ set -e
 # tails persistence location
 TAILSDATA=/live/persistence/TailsData_unlocked
 # where we keep stuff
-FRITHLIB=/var/lib/frith
+SKEL=/var/lib/frith/skel
 
 # only do postinst when installed on Tails
 if [ -d $TAILSDATA ]; then
@@ -14,23 +14,20 @@ if [ -d $TAILSDATA ]; then
   #
   # this is too crude: it leaks data about the parent image onto the child
   # and doubles the amount of space required for cache on the parent
+  # 
+  # it also causes problems when upgrading to a new minor version of tails, as
+  # we overwrite the updated apt/lists and apt/conf
   # REWRITE!
-  cp -an $TAILSDATA/apt/cache/* $FRITHLIB/skel/apt/cache
-  cp -an $TAILSDATA/apt/lists/* $FRITHLIB/skel/apt/lists
-  cp -an $TAILSDATA/apt/conf/* $FRITHLIB/skel/apt/conf
+  cp -an $TAILSDATA/apt/cache/* $SKEL/apt/cache
+  cp -an $TAILSDATA/apt/lists/* $SKEL/apt/lists
+  cp -an $TAILSDATA/apt/conf/* $SKEL/apt/conf
 
   # also make a copy now of /etc/skel/.gnupg, otherwise we lose defaults
-  cp -an /etc/skel/.gnupg $FRITHLIB/skel/gnupg
-  chown -R amnesia:amnesia $FRITHLIB/skel/gnupg
+  cp -an /etc/skel/.gnupg $SKEL/gnupg
+  chown -R amnesia:amnesia $SKEL/gnupg
 
   # make sure file permissions and ownerships are correct
-  chmod 4755 /usr/sbin/tcp-helper
-  chmod 600 $FRITHLIB/skel/live-additional-software.conf $FRITHLIB/skel/persistence.conf
-  chown tails-persistence-setup:tails-persistence-setup $FRITHLIB/skel/live-additional-software.conf $FRITHLIB/skel/persistence.conf
-
-  if [ -f /live/persistence/TailsData_unlocked/live-additional-software.conf ]; then
-    # package name migration helper (no longer required)
-    sed -i 's/^monkeybox$/frith/' /live/persistence/TailsData_unlocked/live-additional-software.conf || exit 1
-  fi
+  chmod 600 $SKEL/live-additional-software.conf $SKEL/persistence.conf
+  chown tails-persistence-setup:tails-persistence-setup $SKEL/live-additional-software.conf $SKEL/persistence.conf
 fi
 
