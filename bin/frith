@@ -872,7 +872,7 @@ sub get_secret_keys() {
 	while(<$pipe>) {
 		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
 		chop;
-		if(/^sec\s+([[:digit:]]+[A-Za-z]\/0x[a-fA-F0-9]+)\s+([[:digit:]-]+)(\s+\[expires: ([[:digit:]-]+)\])?$/) {
+		if(/^sec\s+[[:digit:]]+[A-Za-z]\/(0x[a-fA-F0-9]+)\s+([[:digit:]-]+)(\s+\[expires: ([[:digit:]-]+)\])?$/) {
 			push(@secret_key_ids, $1);
 			print "DEBUG: secret key found $1\n" if $CMD_OPTIONS{'debug'};
 		}
