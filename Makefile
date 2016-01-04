@@ -21,6 +21,7 @@ clean:
 	echo
 
 deb: install
+	vi DEBIAN/control
 	sudo cp -R DEBIAN $(PREFIX)/
 	sudo dpkg-deb --build $(PREFIX) $(DPKG_DEST)
 
