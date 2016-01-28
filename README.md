@@ -17,7 +17,7 @@ Requirements
 ------------
 
 * A computer that can boot from USB and has two usable USB ports
-* A fresh downloaded image of [Tails](https://tails.boum.org/download/index.en.html) OR a friend who has a copy of frith/Tails that you can borrow
+* A fresh downloaded image of [Tails](https://tails.boum.org/install/) OR a friend who has a copy of frith/Tails that you can borrow
 * Two 8GB flash drives, such as [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
     * A [PGP Smartcard v2](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) (optionally with an external card reader if your computer(s) lack a built-in reader)
@@ -40,9 +40,9 @@ Getting started
 
 ### Installing frith from scratch
 
-1. Install Tails on the first 8GB flash drive by [following their instructions](https://tails.boum.org/doc/first_steps/installation/manual/index.en.html)
+1. Install Tails on the first 8GB flash drive by [following their instructions](https://tails.boum.org/install/)
 2. Boot into the first drive
-3. Configure a persistent volume [as described here](https://tails.boum.org/doc/first_steps/persistence/configure/index.en.html). Be sure to use a very strong encryption passphrase. Enable "GnuPG", "APT lists" and "APT packages"
+3. Configure an encrypted persistent volume as described in the Tails instructions. In addition to "Personal Data", you should also enable "GnuPG", "APT lists" and "APT packages"
 4. Reboot
 5. When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
 6. Set a temporary administration password and continue
@@ -81,7 +81,7 @@ If you saved your subkeys to a flash disk, you can install them on your everyday
 gpg --import FILENAME
 ```
 
-Where FILENAME is the name of the file that you saved. If you want to use iPGMail on iOS, you should upload this file to Dropbox so that the app can find it. This is not ideal, so deleting the file immediately afterwards is strongly advised. (note: iPGMail does not yet support laptop subkeys without the primary, but with luck this will change soon)
+Where FILENAME is the name of the file that you saved. If you want to use iPGMail on iOS, you should connect your phone/tablet to iTunes to transfer the file. Do not use the Dropbox option, as this is insecure! (note: iPGMail does not yet support laptop subkeys without the primary, but with luck this will change soon)
 
 Frith is then only required when you want to do one of the following:
 
@@ -91,7 +91,7 @@ Frith is then only required when you want to do one of the following:
 
 In such cases you need to boot from one of the Tails drives, perform the operation, and republish any changed keys. You only need to make a fresh backup if you have created a new primary key or subkey.
 
-Note that in order to use frith, you must enable persistence each time you boot Tails. This is a security feature! (You only need to set the temporary administration password if you are installing frith for the first time)
+Note that in order to use frith, you must enable persistence each time you boot Tails. This is a security feature! (You only need to set the temporary administration password when you are installing frith for the first time)
 
 ### Recommended client software
 
