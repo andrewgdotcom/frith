@@ -70,7 +70,7 @@ Usage
 Once you have your smartcard populated with your subkeys, you can use it on your everyday computer. You will need to download the matching public key first, as the smartcard only contains your private keys. With GnuPG, this is done by incanting the following the first time the smartcard is inserted:
 
 ```
-gpg --card-status|perl -ne 'print if s/sec#.*0x([A-F0-9]{8,16}).*$/$1/'|xargs gpg --search
+gpg --card-edit fetch
 ```
 
 You can then use gpg normally.
