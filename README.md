@@ -41,9 +41,11 @@ Getting started
 
 ### Installing frith from scratch
 
+WARNING: This will overwrite any persistent configuration you have already set up, so should only be done on a fresh Tails install. We strongly recommended that a Tails drive with frith installed is NOT used for any other purpose, as frith is not supported by the Tails team and may have unexpected side effects.
+
 1. Install Tails on the first 8GB flash drive by [following their instructions](https://tails.boum.org/install/)
 2. Boot into the first drive
-3. Configure an encrypted persistent volume as described in the Tails instructions. In addition to "Personal Data", you should also enable "GnuPG", "APT lists" and "APT packages"
+3. Configure an encrypted persistent volume as described in the Tails instructions
 4. Reboot
 5. When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
 6. Set a temporary administration password and continue
