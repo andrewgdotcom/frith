@@ -7,6 +7,8 @@ TAILSDATA=/live/persistence/TailsData_unlocked
 SKEL=/var/lib/frith/skel
 
 # only do postinst when installed on Tails
+# this creates a sensible persistent volume skeleton that frith uses when
+# cloning itself onto a fresh USB disk
 if [ -d $TAILSDATA ]; then
   # cache a copy of the distribution media in skel, so that a fresh install on
   # another tails drive doesn't have to wait for network connectivity
@@ -15,14 +17,13 @@ if [ -d $TAILSDATA ]; then
   # this is too crude: it leaks data about the parent image onto the child
   # and doubles the amount of space required for cache on the parent
   # 
-  # it also causes problems when upgrading to a new minor version of tails, as
-  # we overwrite the updated apt/lists and apt/conf
-  # REWRITE!
   cp -an $TAILSDATA/apt/cache/* $SKEL/apt/cache
   cp -an $TAILSDATA/apt/lists/* $SKEL/apt/lists
-  cp -an $TAILSDATA/apt/conf/* $SKEL/apt/conf
+# Not required now that we use link persistence. Never worked right anyway.
+#  cp -an $TAILSDATA/apt/conf/* $SKEL/apt/conf
 
-  # also make a copy now of /etc/skel/.gnupg, otherwise we lose defaults
+  # also make a copy now of /etc/skel/.gnupg, otherwise the clone will trash
+  # gnupg's sensible defaults when it finds no persistent config on boot
   cp -an /etc/skel/.gnupg $SKEL/gnupg
   chown -R amnesia:amnesia $SKEL/gnupg
 

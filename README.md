@@ -49,7 +49,7 @@ Getting started
 7. Open a terminal and cut and paste the following into it. You will be prompted for the temporary administration password
 
 	```
-	sudo bash -c "wget -qO - https://andrewg.com/andrewg-codesign.pub | apt-key add - ; cd /live/persistence/TailsData_unlocked; echo frith >> live-additional-software.conf; echo '/etc/apt source=apt/conf' >> persistence.conf; chown tails-persistence-setup:tails-persistence-setup live-additional-software.conf persistence.conf; chmod og= live-additional-software.conf persistence.conf; echo 'deb tor+http://andrewg.com/debian andrewg main' > /etc/apt/sources.list.d/andrewg.list; cp -a /etc/apt apt/conf; apt-get update && apt-get install -y frith"
+	wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh && sudo bash frith-install.sh
 	```
 8. Reboot and continue to "First time running frith" below
 
