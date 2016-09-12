@@ -78,6 +78,9 @@ my $default_ssh_pubkey_suffix = '_id_rsa.pub';
 my $default_backup_dir = home();
 my $default_backup_file = 'gnupg.tar';
 
+my $mail_server = "";
+my $mail_username = "";
+
 my $gpg_location = catfile(home(),'.gnupg');
 
 my $skel_location = '/var/lib/frith/skel';
@@ -662,14 +665,15 @@ sub edit_key() {
 
 ############### Certify harnesses
 
-
-sub certify() {
-	my $key_id = shift;
-	my $my_key_id = shift;
-	print qq[DEBUG: certifying key $key_id with key $my_key_id\n] if $CMD_OPTIONS{'debug'};
-
-	return system('gpg', '--sign-key', '--local-user', $my_key_id, $key_id);
-}
+# Should not be required any more now we are farming out to monkeysign
+#
+#sub m() {
+#	my $key_id = shift;
+#	my $my_key_id = shift;
+#	print qq[DEBUG: certifying key $key_id with key $my_key_id\n] if $CMD_OPTIONS{'debug'};
+#
+#	return system('gpg', '--sign-key', '--local-user', $my_key_id, $key_id);
+#}
 
 ############### Upload, download harnesses
 
@@ -963,23 +967,23 @@ sub get_subkey_id() {
 	}
 }
 
-sub get_today_signed_keys() {
-	my $max_age = shift;
-	my %key_ids;
-	my $current_key_id;
-	my $today = &get_date;
-		
-	open(my $gpg_output, "gpg --list-sigs --keyid-format 0xlong --with-fingerprint|");
-	while(<$gpg_output>) {
-		if(/Key fingerprint = ([A-F0-9 ]+)$/) {
-			$current_key_id = $1;
-			$current_key_id =~ s/\s//g;
-		} elsif(/^sig \d?\s+0x[A-F0-9]+\s+${today}\s/) {
-			$key_ids{$current_key_id} = 1;
-		}
-	}
-	return keys(%key_ids);
-}
+#sub get_today_signed_keys() {
+#	my $max_age = shift;
+#	my %key_ids;
+#	my $current_key_id;
+#	my $today = &get_date;
+#		
+#	open(my $gpg_output, "gpg --list-sigs --keyid-format 0xlong --with-fingerprint|");
+#	while(<$gpg_output>) {
+#		if(/Key fingerprint = ([A-F0-9 ]+)$/) {
+#			$current_key_id = $1;
+#			$current_key_id =~ s/\s//g;
+#		} elsif(/^sig \d?\s+0x[A-F0-9]+\s+${today}\s/) {
+#			$key_ids{$current_key_id} = 1;
+#		}
+#	}
+#	return keys(%key_ids);
+#}
 
 
 ################ Expiry harnesses
@@ -1716,21 +1720,28 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 
 
 sub SR_cert_scan() {
-	print qq[
-BROKEN - DO NOT USE
-];
-	return 1;
+#	print qq[
+#BROKEN - DO NOT USE
+#];
+#	return 1;
 	
-	print qq[
-NOTE: emailing signed keys to owner is not currently working from within
-Tails, so we will send the signed keys to the keyservers directly.
-];
-	my $my_key_id = &select_key('to sign with');
+#	print qq[
+#NOTE: emailing signed keys to owner is not currently working from within
+#Tails, so we will send the signed keys to the keyservers directly.
+#];
+	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
+	
+	until($mail_server) {
+		$mail_server = &user_input('Mail server address: ');
+	}
+	until($mail_password) {
+		$mail_username = &user_input('Mail server username: ');
+	}
 	
 # need to capture monkeyscan output and process somehow - does it emit
 # a signed attachment on STDOUT same as monkeysign? Must test.
-	system('monkeyscan', '-u', $my_key_id, '--no-mail');
+	system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
 	
 	# Can't tell what key monkeyscan just signed, so we publish any that
 	# were signed today.
@@ -1744,21 +1755,27 @@ Tails, so we will send the signed keys to the keyservers directly.
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 
 sub SR_cert_manual() {
+#	print qq[
+#NOTE: emailing signed keys to owner is not currently working from within
+#Tails, so we will send the signed keys to the keyservers directly.
+#];
+	my $my_key_id = &select_key('to certify with');
+	return 0 unless $my_key_id;
 	my $key_id = &find_public_key('to certify');
 	return 0 unless $key_id;
-	my $my_key_id = &select_key('to sign with');
-	return 0 unless $my_key_id;
-	print qq[
-NOTE: emailing signed keys to owner is not currently working from within
-Tails, so we will send the signed keys to the keyservers directly.
-];
 
-# Nope, monkeysign doesn't work. Do it the old-fashioned way instead
-#	system('monkeysign', '-u', $my_key_id, $key_id);
-
-	if(&certify($key_id, $my_key_id)) {
-		&publish($key_id);
+	until($mail_server) {
+		$mail_server = &user_input('Mail server address: ');
 	}
+	until($mail_password) {
+		$mail_username = &user_input('Mail server username: ');
+	}
+	
+	system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, $key_id);
+
+#	if(&certify($key_id, $my_key_id)) {
+#		&publish($key_id);
+#	}
 }
 $actionmap{$LA_cert_manual} = \&SR_cert_manual;
 
