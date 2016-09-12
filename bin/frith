@@ -667,7 +667,7 @@ sub edit_key() {
 
 # Should not be required any more now we are farming out to monkeysign
 #
-#sub m() {
+#sub certify() {
 #	my $key_id = shift;
 #	my $my_key_id = shift;
 #	print qq[DEBUG: certifying key $key_id with key $my_key_id\n] if $CMD_OPTIONS{'debug'};
