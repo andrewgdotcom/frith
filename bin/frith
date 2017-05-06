@@ -1435,7 +1435,7 @@ sub SR_clone_to_tails() {
 Please insert a Tails USB disk.
 	
 If you do not have one, clone this image to a blank USB now:
-Applications -> Tails -> Tails Installer -> Clone and Install
+Applications -> Tails -> Tails Installer -> Install by Cloning
 	
 ...and come back to this window when finished.
 
