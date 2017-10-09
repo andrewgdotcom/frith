@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+TMPDIR=$(mktemp -d)
+chown amnesia $TMPDIR
+
 GITHUB_ROOT=https://github.com/andrewgdotcom/frith/raw/master
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
 
@@ -12,7 +15,10 @@ cd $PERSISTENT_VOL
 # NB this will overwrite any existing persistence configuration!
 
 echo frith >> live-additional-software.conf
-sudo -u amnesia wget -qO persistence.conf $GITHUB_ROOT/skel/persistence.conf
+
+# Drop permissions when downloading and save in a temp dir, then copy to proper location
+sudo -u amnesia wget -qO $TMPDIR/persistence.conf $GITHUB_ROOT/skel/persistence.conf
+cp $TMPDIR/persistence.conf .
 
 # Before we continue, trash any stale APT config. Frith is a jealous god.
 # Also, he screwed up in the past and wants to repent.
@@ -41,8 +47,10 @@ chmod og= live-additional-software.conf persistence.conf
 
 # download the APT repo config directly from github
 
-sudo -u amnesia wget -qO apt/conf/trusted.gpg.d/andrewg-codesign.gpg $GITHUB_ROOT/skel/apt/conf/trusted.gpg.d/andrewg-codesign.gpg 
-sudo -u amnesia wget -qO apt/conf/sources.list.d/andrewg.list $GITHUB_ROOT/skel/apt/conf/sources.list.d/andrewg.list
+sudo -u amnesia wget -qO $TMPDIR/andrewg-codesign.gpg $GITHUB_ROOT/skel/apt/conf/trusted.gpg.d/andrewg-codesign.gpg 
+cp $TMPDIR/andrewg-codesign.gpg apt/conf/trusted.gpg.d/
+sudo -u amnesia wget -qO $TMPDIR/andrewg.list $GITHUB_ROOT/skel/apt/conf/sources.list.d/andrewg.list
+cp $TMPDIR/andrewg.list apt/conf/sources.list.d/
 
 # reboot to make sure everything starts up in the right place
 
