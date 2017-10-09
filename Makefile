@@ -14,6 +14,7 @@ $(BINPREFIX) $(LIBPREFIX) $(SKEL):
 install: all $(BINPREFIX) $(LIBPREFIX) $(SKEL)
 	sudo cp bin/frith $(BINPREFIX)/
 	sudo chmod 755 $(BINPREFIX)/frith
+	sudo gpg --no-default-keyring --keyring skel/apt/conf/trusted.gpg.d/andrewg-codesign.gpg  --refresh-keys
 	sudo cp -R skel/* $(SKEL)/
 	sudo chmod 600 $(SKEL)/live-additional-software.conf $(SKEL)/persistence.conf
 
