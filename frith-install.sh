@@ -12,7 +12,7 @@ cd $PERSISTENT_VOL
 # NB this will overwrite any existing persistence configuration!
 
 echo frith >> live-additional-software.conf
-wget -qO persistence.conf $GITHUB_ROOT/skel/persistence.conf
+sudo amnesia wget -qO persistence.conf $GITHUB_ROOT/skel/persistence.conf
 
 # Before we continue, trash any stale APT config. Frith is a jealous god.
 # Also, he screwed up in the past and wants to repent.
@@ -41,8 +41,8 @@ chmod og= live-additional-software.conf persistence.conf
 
 # download the APT repo config directly from github
 
-wget -qO apt/conf/trusted.gpg.d/andrewg-codesign.gpg $GITHUB_ROOT/skel/apt/conf/trusted.gpg.d/andrewg-codesign.gpg 
-wget -qO apt/conf/sources.list.d/andrewg.list $GITHUB_ROOT/skel/apt/conf/sources.list.d/andrewg.list
+sudo amnesia wget -qO apt/conf/trusted.gpg.d/andrewg-codesign.gpg $GITHUB_ROOT/skel/apt/conf/trusted.gpg.d/andrewg-codesign.gpg 
+sudo amnesia wget -qO apt/conf/sources.list.d/andrewg.list $GITHUB_ROOT/skel/apt/conf/sources.list.d/andrewg.list
 
 # reboot to make sure everything starts up in the right place
 
