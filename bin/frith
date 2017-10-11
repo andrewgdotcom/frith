@@ -246,7 +246,6 @@ my $LA_gen_advanced = 'Advanced key generation';
 
 my $LA_clone_to_tails = 'Clone to another Tails disk';
 my $LA_backup_to_file = 'Back up to file';
-my $LA_clone_from_tails = 'Clone from existing Tails disk';
 my $LA_restore_from_file = 'Restore from file';
 my $LA_propagate = "Install ${program} software on another Tails disk";
 
@@ -302,7 +301,6 @@ my @CH_generate = (
 );
 my @CH_backup = (
 	$LA_clone_to_tails,
-	$LA_clone_from_tails,
 	$LA_backup_to_file,
 	$LA_restore_from_file,
 	$LA_propagate,
@@ -349,7 +347,6 @@ my @CH_help = (
 my @CH_getting_started = (
 	$LA_usedefaults,
 	$LA_restore_from_file,
-	$LA_clone_from_tails,
 );
 my @CH_getting_started_no_tails = (
 	$LA_usedefaults,
@@ -1446,21 +1443,6 @@ Applications -> Tails -> Tails Installer -> Install by Cloning
 }
 $actionmap{$LA_clone_to_tails} = \&SR_clone_to_tails;
 
-sub SR_clone_from_tails() {
-	print qq[
-You will need to have booted tails with an administration password.
-If not, hit ctrl-c and reboot tails with an admin password NOW.
-
-Please insert the old Tails USB disk
-
-];
-
-	&user_input('Hit return to continue: ');
-	# pulling requires sudo
-	system('sudo', 'tails-clone-persistent', '--pull');
-}
-$actionmap{$LA_clone_from_tails} = \&SR_clone_from_tails;
-
 sub SR_propagate() {
 #	print qq[
 #Please insert a Tails USB disk.
@@ -2133,12 +2115,7 @@ sub SR_revoke_primary() {
 		&publish($key_id);
 	} else {
 		print qq[IN ORDER TO CONTINUE USING THIS KEY YOU MUST RESTORE FROM BACKUP\n\n];
-		if($using_tails) {
-			# we should give people the choice to restore from file even if using tails
-			&SR_clone_from_tails;
-		} else {
-			&SR_restore_from_file;
-		}
+		&SR_restore_from_file;
 	}
 }
 $actionmap{$LA_revoke_primary} = \&SR_revoke_primary;
