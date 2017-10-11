@@ -1480,7 +1480,7 @@ This should be >=8GB.
 ];
 
 	&user_input('Hit return to continue: ');
-	system('tails-clone-persistent', "--skel=$skel_location");
+	system('tails-clone-persistent', "--source=$skel_location");
 }
 $actionmap{$LA_propagate} = \&SR_propagate;
 
