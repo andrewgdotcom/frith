@@ -1,0 +1,1 @@
+deb [signed-by=/etc/apt/sources.list.d/andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
