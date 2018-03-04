@@ -2,8 +2,6 @@
 set -e
 
 TMPDIR=$(mktemp -d)
-chown amnesia $TMPDIR
-
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
 
 cd $PERSISTENT_VOL
