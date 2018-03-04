@@ -23,11 +23,11 @@ cp $TMPDIR/persistence.conf .
 # Before we continue, trash any stale APT config. Frith is a jealous god.
 # Also, he screwed up in the past and wants to repent.
 
-rm -rf apt/conf
+rm -rf apt
 
 # ensure the peristent directories are properly created
 
-for i in apt/conf/sources.list.d apt/conf/trusted.gpg.d apt/lists apt/cache; do
+for i in apt/sources.list.d apt/lists apt/cache; do
   if [ ! -d $i ]; then
     mkdir -p $i
   fi
@@ -47,10 +47,13 @@ chmod og= live-additional-software.conf persistence.conf
 
 # download the APT repo config directly from github
 
-sudo -u amnesia wget -qO $TMPDIR/andrewg-codesign.gpg $GITHUB_ROOT/skel/apt/conf/trusted.gpg.d/andrewg-codesign.gpg 
-cp $TMPDIR/andrewg-codesign.gpg apt/conf/trusted.gpg.d/
-sudo -u amnesia wget -qO $TMPDIR/andrewg.list $GITHUB_ROOT/skel/apt/conf/sources.list.d/andrewg.list
-cp $TMPDIR/andrewg.list apt/conf/sources.list.d/
+# Put pubkey in sources.list.d and refer to it in the .list file
+# This is safe because `apt-get update` ignores unknown file extensions
+# Don't use trusted.gpg.d as it grants global trust, which is excessive
+# https://wiki.debian.org/DebianRepository/UseThirdParty
+sudo -u amnesia wget -qO $TMPDIR/andrewg-codesign.gpg $GITHUB_ROOT/skel/apt/sources.list.d/andrewg-codesign.gpg
+sudo -u amnesia wget -qO $TMPDIR/andrewg.list $GITHUB_ROOT/skel/apt/sources.list.d/andrewg.list
+cp $TMPDIR/andrewg.list $TMPDIR/andrewg-codesign.gpg apt/sources.list.d/
 
 # reboot to make sure everything starts up in the right place
 
