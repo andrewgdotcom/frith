@@ -47,14 +47,26 @@ WARNING: This will overwrite any persistent configuration you have already set u
 2. Boot into the first drive
 3. Configure an encrypted persistent volume as described in the Tails instructions
 4. Reboot
-5. When prompted, select "Yes" for persistence and enter the passphrase. Also select "Yes" for "more options" and continue
-6. Set a temporary administration password and continue
+5. When the greeter appears, enter the passphrase for the persistent drive, then click the "+" for more options
+6. Set a temporary administration password and continue to boot into Tails
 7. Open a terminal and cut and paste the following into it. You will be prompted for the temporary administration password
 
-	```
-	wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh && sudo bash frith-install.sh
-	```
-8. Reboot and continue to "First time running frith" below
+```
+wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh
+sha256sum frith-install.sh
+```
+	This should produce the following output:
+```
+3516fbb227b5f8f02fdf2c9a8458e56a19ca289fe7eeb3025ca66b829f0c5230  frith-install.sh
+```
+
+8. Only if the above checks out, run the installer:
+
+```
+sudo bash frith-install.sh
+```
+
+9. Reboot and continue to "First time running frith" below
 
 ### First time running frith
 
