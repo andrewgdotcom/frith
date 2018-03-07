@@ -19,14 +19,16 @@ Requirements
 
 * A computer that can boot from USB and has two usable USB ports
 * A fresh downloaded image of [Tails](https://tails.boum.org/install/) OR a friend who has a copy of frith/Tails that you can borrow
-* Two 8GB flash drives, such as [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
+* Two 8GB flash drives, such as [Kingston Data Traveler SE9](https://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
-    * A [PGP Smartcard v2](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) (optionally with an external card reader if your computer(s) lack a built-in reader)
+    * A [PGP Smartcard v2](https://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) (optionally with an external card reader if your computer(s) lack a built-in reader)
     * A third removable drive (for transferring subkeys to devices that don't support smartcards)
 
 Beware that some bulkier USB drives can obstruct adjacent USB ports, preventing a second drive from being connected. It is recommended to use slimline models (such as the one mentioned above) to minimize frustration.
 
 Alternatives to PGP Smartcards exist, such as the [YubiKey NEO](https://www.yubico.com/2012/12/yubikey-neo-openpgp/) (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a partial list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
+
+Note that frith will never generate a key on the card itself, but will always generate on the computer and then copy to the card. This is so that you can keep a backup of your key material, but it also protects against [poorly-implemented hardware random number generators](http://ieeexplore.ieee.org/document/6994021/?reload=true).
 
 Some devices (smartphones, tablets...) may not be compatible with PGP smartcards — in such cases you will need to save your subkeys to a third removable drive for transfer to the device by other means. This is not as secure as using a smartcard, and should only be done when absolutely necessary.
 
@@ -50,7 +52,6 @@ WARNING: This will overwrite any persistent configuration you have already set u
 5. When the greeter appears, enter the passphrase for the persistent drive, then click the "+" for more options
 6. Set a temporary administration password and continue to boot into Tails
 7. Open a terminal and cut and paste the following into it. You will be prompted for the temporary administration password
-
 ```
 wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh
 sha256sum frith-install.sh
@@ -59,9 +60,7 @@ sha256sum frith-install.sh
 ```
 3516fbb227b5f8f02fdf2c9a8458e56a19ca289fe7eeb3025ca66b829f0c5230  frith-install.sh
 ```
-
 8. Only if the above checks out, run the installer:
-
 ```
 sudo bash frith-install.sh
 ```
@@ -90,7 +89,7 @@ gpg --card-edit fetch
 
 You can then use gpg normally.
 
-If you saved your subkeys to a flash disk, you can install them on your everyday computer and continue from there (remembering that this does not protect your subkeys from theft, but at least your primary key is safe...). With GnuPG, this is done using:
+If you saved your subkeys to a flash disk, you can install them on your everyday computer and continue from there. This does not protect your subkeys from theft, but your primary key is safe, and you can revoke and replace the subkeys more easily than replacing your entire key. With GnuPG, this is done using:
 
 ```
 gpg --import FILENAME
@@ -113,7 +112,6 @@ Note that in order to use frith, you must enable persistence each time you boot 
 * [Enigmail for Thunderbird](https://www.enigmail.net/)
 * [monkeysphere for openssh](http://web.monkeysphere.info/)
 * [pam_ssh_agent_auth for sudo](http://pamsshagentauth.sourceforge.net/)
-	* [UNOFFICIAL Debian package](https://andrewg.com/pam_ssh_agent_auth.html)
 
 To use smartcard auth with putty, you must download [<em>GnuPG modern for Windows</em> from the official GnuPG site](https://www.gnupg.org/download/). No other version currently has putty support.
 
@@ -121,20 +119,15 @@ To use smartcard auth with putty, you must download [<em>GnuPG modern for Window
 
 Smartcards:
 
-* [OpenPGP Smartcard v2.1](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2.html)
-	* [with SIM breakout](http://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html)
+* [OpenPGP Smartcard v2.1](https://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2.html)
+	* [with SIM breakout](https://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html)
 
 Smartcard readers:
 
-* [ACS ACR38T](http://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable ([drivers](http://www.acs.com.hk/en/driver/4/acr38t-smart-card-reader/))
-* [Athena ASEDrive IIIe V3CR](http://en.cryptoshop.com/products/smartcardreader/athena-asedrive-iiie-v3-usb-reader.html) — full-size, external (not recommended for SIM breakout cards as they can jam)
+* [ACS ACR38T](https://en.cryptoshop.com/products/smartcardreader/acs-acr-38t.html) — SIM format, portable ([drivers](http://www.acs.com.hk/en/driver/4/acr38t-smart-card-reader/))
+* [Athena ASEDrive IIIe V3CR](https://en.cryptoshop.com/products/smartcardreader/athena-asedrive-iiie-v3-usb-reader.html) — full-size, external (not recommended for SIM breakout cards as they can jam)
 * [Broadcom BCM5880](https://www.broadcom.com/products/enterprise-and-network-processors/security/bcm5880) — full-size, internal (used in DELL laptops, amongst others)
 
 Flash drives:
 
-* [Kingston Data Traveler SE9](http://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_)
-
-Footnote
---------
-
-This project was originally called monkeybox (alluding to both monkeysphere and busybox), however the name was taken. It was renamed frith on 2015-09-30. 
+* [Kingston Data Traveler SE9](https://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_)
