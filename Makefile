@@ -4,7 +4,7 @@ all:
 	echo
 
 $(BINPREFIX):
-	sudo mkdir -p $@
+	mkdir -p $@
 
 install: all $(BINPREFIX)
 	cp bin/frith $(BINPREFIX)/
