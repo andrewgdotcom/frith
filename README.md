@@ -56,7 +56,7 @@ WARNING: This will overwrite any persistent configuration you have already set u
 wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh
 sha256sum frith-install.sh
 ```
-	This should produce the following output:
+This should produce the following output:
 ```
 3516fbb227b5f8f02fdf2c9a8458e56a19ca289fe7eeb3025ca66b829f0c5230  frith-install.sh
 ```
