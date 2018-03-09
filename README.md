@@ -58,7 +58,7 @@ sha256sum frith-install.sh
 ```
 This should produce the following output:
 ```
-12559ded577866d63bd50d584291a400d2202512020a1b7bc3ba22293f7939bb  frith-install.sh
+a8e204eb9c8df5f76249f9c21e34f4218420a9c7fc46364681e464bce20de83e  frith-install.sh
 ```
 8. Only if the above checks out, run the installer:
 ```

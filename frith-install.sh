@@ -3,10 +3,9 @@ set -e
 
 TMPDIR=$(mktemp -d)
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
-SKELETON_DIR=/var/cache/frith
 
-if [[ "$1" == "skel" ]]; then
-  cd $SKELETON_DIR
+if [[ "$1" ]]; then
+  cd "$1"
 else
   cd $PERSISTENT_VOL
 fi
@@ -116,7 +115,7 @@ LUKYnA5qHberqyKwKEwhod10RlDrLm1y7s6ojQX7hNhU
 EOF
 gpg --no-default-keyring --keyring=apt/sources.list.d/andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
 
-if [[ "$1" == "skel" ]]; then
+if [[ "$1" ]]; then
   # don't reboot
   exit 0
 fi
