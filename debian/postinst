@@ -4,57 +4,21 @@ set -e
 # tails persistence location
 TAILSDATA=/live/persistence/TailsData_unlocked
 # where we cache files for use with with tails-clone-persistent
-SKEL=/var/lib/frith/skel
+SKEL=/var/cache/frith
+OLDSKEL=/var/lib/frith/skel
 
 # only do postinst when installed on Tails
 # this creates a sensible persistent volume skeleton that frith uses when
 # cloning itself onto a fresh USB disk
+
 if [ -d $TAILSDATA ]; then
+	if [[ ! -d $SKEL ]]; then
+		mkdir -p $SKEL
+	fi
+	/usr/lib/frith/frith-install.sh $SKEL
 
-  if [[ ! -f $TAILSDATA/apt/sources.list.d/andrewg-codesign.gpg && \
-        -f $TAILSDATA/apt/trusted.gpg.d/andrewg-codesign.gpg && \
-        -f $TAILSDATA/apt/sources.list.d/andrewg.list ]]; then
-     # Fix our earlier mistakes
-     mv $TAILSDATA/apt/{trusted.gpg.d,sources.list.d}/andrewg-codesign.gpg
-     perl -pi -e 's,deb tor+http://andrewg.com/debian,deb [signed-by=/etc/apt/sources.list.d/andrewg-codesign.gpg] tor+http://andrewg.com/debian,' $TAILSDATA/apt/sources.list.d/andrewg.list
-  fi
-
-  # Make sure we're using the latest signing key
-  gpg --no-default-keyring --keyring $TAILSDATA/apt/sources.list.d/andrewg-codesign.gpg  --refresh-keys
-
-  # cache a copy of the distribution media in skel, so that a fresh install on
-  # another tails drive doesn't have to wait for network connectivity
-  # use no-clobber so that package distributed files take priority over local
-  #
-  # this is too crude: it leaks data about the parent image onto the child
-  # and doubles the amount of space required for cache on the parent
-  # 
-  if [[ ! -f $SKEL ]]; then
-    mkdir -p $SKEL
-  fi
-
-  cp -an $TAILSDATA/apt/cache/* $SKEL/apt/cache
-  cp -an $TAILSDATA/apt/lists/* $SKEL/apt/lists
-  cp -an $TAILSDATA/apt/sources.list.d/{andrewg.list,andrewg-codesign.gpg} $SKEL/apt/sources.list.d
-
-  # Only configure the bare minimum persistence in the skeleton
-  echo frith > $SKEL/live-additional-software.conf
-
-  cat <<EOF > $SKEL/persistence.conf
-/home/amnesia/Persistent	source=Persistent
-/home/amnesia/.gnupg	source=gnupg
-/var/cache/apt/archives	source=apt/cache
-/var/lib/apt/lists	source=apt/lists
-/etc/apt/sources.list.d	source=apt/sources.list.d,link
-EOF
-
-  # also make a copy now of /etc/skel/.gnupg, otherwise the clone will trash
-  # gnupg's sensible defaults when it finds no persistent config on boot
-  cp -an /etc/skel/.gnupg $SKEL/gnupg
-  chown -R amnesia:amnesia $SKEL/gnupg
-
-  # make sure file permissions and ownerships are correct
-  chmod 600 $SKEL/live-additional-software.conf $SKEL/persistence.conf
-  chown tails-persistence-setup:tails-persistence-setup $SKEL/live-additional-software.conf $SKEL/persistence.conf
-
+	# clean up old skel installations
+	if [[ -d $OLDSKEL ]]; then
+		rm -rf $OLDSKEL
+	fi
 fi

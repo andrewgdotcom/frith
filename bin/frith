@@ -84,7 +84,7 @@ my $mail_password = "";
 
 my $gpg_location = catfile(home(),'.gnupg');
 
-my $skel_location = '/var/lib/frith/skel';
+my $skel_location = '/var/cache/frith';
 
 
 ###############
