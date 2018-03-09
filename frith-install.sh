@@ -50,13 +50,13 @@ fi
 chown tails-persistence-setup:tails-persistence-setup live-additional-software.conf persistence.conf
 chmod og= live-additional-software.conf persistence.conf
 
-# Put our pubkey in sources.list.d and refer to it in the .list file
-# This is safe because `apt-get update` ignores unknown file extensions
+# Put our pubkey under sources.list.d and refer to it in the .list file
+# This is safe because apt ignores dotfiles.
 # Don't use trusted.gpg.d as it grants global trust, which is excessive
 # https://wiki.debian.org/DebianRepository/UseThirdParty
 
 cat <<EOF > apt/sources.list.d/andrewg.list
-deb [signed-by=/etc/apt/sources.list.d/andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
+deb [signed-by=/etc/apt/sources.list.d/.andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
 EOF
 
 cat <<EOF > $TMPDIR/andrewg-codesign.asc
@@ -113,7 +113,9 @@ LUKYnA5qHberqyKwKEwhod10RlDrLm1y7s6ojQX7hNhU
 =tXyi
 -----END PGP PUBLIC KEY BLOCK-----
 EOF
-gpg --no-default-keyring --keyring=apt/sources.list.d/andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
+gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
+# This might leave a backup file; clean it up
+rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 
 if [[ "$1" ]]; then
   # don't reboot
