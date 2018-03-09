@@ -1,5 +1,5 @@
 BINPREFIX = $(DESTDIR)/usr/bin
-LIBPREFIX = $(DESTDIR)/var/lib/frith
+LIBPREFIX = $(DESTDIR)/usr/lib/frith
 
 all: 
 	echo
