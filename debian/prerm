@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+# places where our postinst may have stashed stuff
+SKEL=/var/cache/frith
+OLDSKEL=/var/lib/frith/skel
+
+if [[ -d $SKEL ]]; then
+	rm -rf $SKEL
+fi
+
+if [[ -d $OLDSKEL ]]; then
+	rm -rf $OLDSKEL
+fi
