@@ -80,6 +80,7 @@ my $default_backup_file = 'gnupg.tar';
 
 my $mail_server = "";
 my $mail_username = "";
+my $mail_password = "";
 
 my $gpg_location = catfile(home(),'.gnupg');
 
@@ -1717,7 +1718,7 @@ sub SR_cert_scan() {
 	until($mail_server) {
 		$mail_server = &user_input('Mail server address: ');
 	}
-	until($mail_password) {
+	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
 	
@@ -1749,7 +1750,7 @@ sub SR_cert_manual() {
 	until($mail_server) {
 		$mail_server = &user_input('Mail server address: ');
 	}
-	until($mail_password) {
+	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
 	
