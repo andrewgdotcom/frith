@@ -15,7 +15,7 @@ if [ -d $TAILSDATA ]; then
 	if [[ ! -d $SKEL ]]; then
 		mkdir -p $SKEL
 	fi
-	/usr/lib/frith/frith-install $SKEL
+	/usr/lib/frith/frith-install.sh $SKEL
 
 	# clean up old skel installations
 	if [[ -d $OLDSKEL ]]; then
