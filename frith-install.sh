@@ -3,8 +3,13 @@ set -e
 
 TMPDIR=$(mktemp -d)
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
+SKELETON_DIR=/var/cache/frith
 
-cd $PERSISTENT_VOL
+if [[ "$1" == "skel" ]]; then
+  cd $SKELETON_DIR
+else
+  cd $PERSISTENT_VOL
+fi
 
 # configure additional software persistence
 # this is a custom persistence config to let us use non-standard APT repos
@@ -111,10 +116,14 @@ LUKYnA5qHberqyKwKEwhod10RlDrLm1y7s6ojQX7hNhU
 EOF
 gpg --no-default-keyring --keyring=apt/sources.list.d/andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
 
+if [[ "$1" == "skel" ]]; then
+  # don't reboot
+  exit 0
+fi
+
 # reboot to make sure everything starts up in the right place
 
 echo "Rebooting in 5s to activate new configuration..."
 sleep 5
 
 reboot
-
