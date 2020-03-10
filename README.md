@@ -60,7 +60,7 @@ This should produce the following output:
 bash frith-install.sh
 ```
 
-9. Reboot and continue to "First time running frith" below
+9. Tails will automatically reboot. Continue to "First time running frith" below
 
 ### First time running frith
 
