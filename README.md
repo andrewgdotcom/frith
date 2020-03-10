@@ -100,7 +100,7 @@ Where FILENAME is the name of the file that you saved. If you want to use iPGMai
 Frith is then only required when you want to do one of the following:
 
 * Create, revoke, or change the expiry date of a primary key or subkey
-* Add or revoke an email address or photo ID (anything requiring a fresh self-signature)
+* Add or revoke an ID
 * Certify someone else's identity
 
 In such cases you need to boot from one of the Tails drives, perform the operation, and republish any changed keys. You only need to make a fresh backup if you have created a new primary key or subkey.
