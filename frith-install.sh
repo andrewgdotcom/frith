@@ -9,7 +9,7 @@ if [[ $(whoami) != root ]]; then
     wget https://andrewg.com/andrewg-codesign.pub -O $TMPDIR/andrewg-codesign.asc
     # Now call ourselves recursively
     sudo /usr/bin/env TMPDIR=$TMPDIR /bin/bash $0
-elif [[ ! $TMPDIR ]]; then
+elif [[ ! $TMPDIR && ! $1 ]]; then
     echo "Please don't run this script as root (i.e. with sudo)"
     exit 1
 fi
@@ -71,17 +71,17 @@ cat <<EOF > apt/sources.list.d/andrewg.list
 deb [signed-by=/etc/apt/sources.list.d/.andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
 EOF
 
+if [[ $1 ]]; then
+    # we are installing in a target (e.g. skeleton) directory; copy from the real one
+    cp -a {$PERSISTENT_VOL/,}apt/sources.list.d/.andrewg-codesign.gpg
+    # don't proceed any further
+    exit 0
+fi
+
+# we are installing locally
 gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
-
-if [[ "$1" ]]; then
-  # if we are installing on a target disk, don't proceed any further
-  exit 0
-fi
-
-# Update and install now, to make sure the debfiles are cached
-apt-get update && apt-get -y install frith
 
 # reboot to make sure everything starts up in the right place
 
