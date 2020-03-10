@@ -80,9 +80,6 @@ if [[ "$1" ]]; then
   exit 0
 fi
 
-# Update and install now, to make sure the debfiles are cached
-apt-get update && apt-get -y install frith
-
 # reboot to make sure everything starts up in the right place
 
 echo "Rebooting in 5s to activate new configuration..."
