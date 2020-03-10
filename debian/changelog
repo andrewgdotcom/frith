@@ -1,5 +1,30 @@
-frith (0.1.0) UNRELEASED; urgency=medium
+frith (0.1.0~~pre5) andrewg-test; urgency=medium
+
+  * Add support for gnupg v2.2
+  * Various stability improvements
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Mon, 09 Mar 2020 09:11:46 +0000
+
+frith (0.1.0~~pre4) andrewg-test; urgency=medium
+
+  * Put apt keyring in a dotfile to suppress noise
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Fri, 09 Mar 2018 19:00:24 +0000
+
+frith (0.1.0~~pre3) andrewg-test; urgency=medium
+
+  * Fixed typo in postinst
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Fri, 09 Mar 2018 15:04:25 +0000
+
+frith (0.1.0~~pre2) andrewg-test; urgency=medium
+
+  * Postinst now uses frith-install.sh to do its dirty work.
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Fri, 09 Mar 2018 14:55:36 +0000
+
+frith (0.1.0~~pre1) andrewg-test; urgency=medium
 
   * Initial release.
 
- -- Andrew Gallagher <andrewg@andrewg.com>  Wed, 07 Mar 2018 17:49:03 +0000
+ -- Andrew Gallagher <andrewg@andrewg.com>  Wed, 07 Mar 2018 18:27:17 +0000
