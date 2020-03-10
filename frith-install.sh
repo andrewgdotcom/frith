@@ -1,7 +1,19 @@
 #!/bin/bash
 set -e
 
-TMPDIR=$(mktemp -d)
+# We do some things as a normal user, then some things as root
+
+if [[ $(whoami) != root ]]; then
+    # Perform network operations as ordinary user
+    TMPDIR=$(mktemp -d)
+    curl https://andrewg.com/andrewg-codesign.pub > $TMPDIR/andrewg-codesign.asc
+    # Now call ourselves recursively
+    sudo /usr/bin/env TMPDIR=$TMPDIR /bin/bash $0
+elif [[ ! $TMPDIR ]]; then
+    echo "Please don't run this script as root (i.e. with sudo)"
+    exit 1
+fi
+
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
 
 if [[ "$1" ]]; then
@@ -59,7 +71,6 @@ cat <<EOF > apt/sources.list.d/andrewg.list
 deb [signed-by=/etc/apt/sources.list.d/.andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
 EOF
 
-curl https://andrewg.com/andrewg-codesign.pub > $TMPDIR/andrewg-codesign.asc
 gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
