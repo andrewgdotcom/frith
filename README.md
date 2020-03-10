@@ -51,7 +51,7 @@ WARNING: This will overwrite any persistent configuration you have already set u
 4. Reboot
 5. When the greeter appears, enter the passphrase for the persistent drive, then click the "+" for more options
 6. Set a temporary administration password and continue to boot into Tails
-7. Open a terminal and cut and paste the following into it. You will be prompted for the temporary administration password
+7. Open a terminal and cut and paste the following into it.
 ```
 wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh
 sha256sum frith-install.sh
@@ -60,7 +60,7 @@ This should produce the following output:
 ```
 44b2807eb86fe644945f3f5d1aa3dcbe41d909dfa5f7295889ea9a4ab8278836  frith-install.sh
 ```
-8. Only if the above checks out, run the installer:
+8. Only if the above checks out, run the installer. You will be prompted for the temporary administration password:
 ```
 sudo bash frith-install.sh
 ```
