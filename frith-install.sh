@@ -76,9 +76,12 @@ gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --im
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 
 if [[ "$1" ]]; then
-  # don't reboot
+  # if we are installing on a target disk, don't proceed any further
   exit 0
 fi
+
+# Update and install now, to make sure the debfiles are cached
+apt-get update && apt-get -y install frith
 
 # reboot to make sure everything starts up in the right place
 

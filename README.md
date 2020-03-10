@@ -53,7 +53,7 @@ sha256sum frith-install.sh
 ```
 This should produce the following output:
 ```
-0327d9053f43a413b711c2406a4118e5b255784051d589e972042761147dfc64  frith-install.sh
+b518e70cbac4281cea7dce5a24899ab72e5c7e640e3505ce5a90bc2de4bdd3b0  frith-install.sh
 ```
 8. Only if the above checks out, run the installer. You will be prompted for the temporary administration password ("sudo password"):
 ```
@@ -65,10 +65,10 @@ bash frith-install.sh
 ### First time running frith
 
 1. When prompted, select "Yes" for persistence and enter the passphrase
-2. Open a terminal and run 'frith'
+2. Open Applications -> Favorites -> Terminal and run 'frith'
 3. Follow the getting started procedure. This will prompt you for your personal details, create a new set of keys and perform a backup to the second Tails drive
 4. When prompted, plug in the smartcard and/or the subkey flash drive
-5. Frith will then publish your new public key (unless you started it with the --nopublish option)
+5. Frith will then publish your new public key
 6. You're done!
 
 Remember to store the second Tails disk in a secure remote location.
