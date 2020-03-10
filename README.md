@@ -1,13 +1,7 @@
 Frith
 =====
 
-Frith is an EXPERIMENTAL offline utility to simplify PGP public key creation and management. It is an attempt to implement the best possible practice as cribbed from various resources:
-
-* [OpenPGP Best Practices (riseup.net)](https://help.riseup.net/en/security/message-security/openpgp/best-practices)
-* [Debian OpenPGP smartcard guide](https://wiki.debian.org/Smartcards/OpenPGP)
-* [FSFE OpenPGP smartcard guide](https://wiki.fsfe.org/TechDocs/Card_howtos/Card_with_subkeys_using_backups?highlight=%28\bCategory%2FCardHowtos\b%29)
-* [Creating the perfect GPG keypair (Alex Cabal)](https://alexcabal.com/creating-the-perfect-gpg-keypair/)
-* [Generating More Secure GPG Keys: A Step-by-Step Guide (Mike English)](http://spin.atomicobject.com/2013/11/24/secure-gpg-keys-guide/)
+Frith is an EXPERIMENTAL offline utility to simplify PGP public key creation and management.
 
 Frith is designed so that your master PGP key is never stored on your everyday computer(s), but kept on a (mostly) offline bootable flash drive that only needs to be brought online to certify other users' keys. To this end, frith strongly recommends the use of Tails, a bootable flash drive OS with an (optional) encrypted storage partition. While the anonymisation features of Tails are not strictly required, the Tor layer acts as a firewall for those occasions when frith must be brought online.
 
@@ -22,11 +16,12 @@ Requirements
 * Two 8GB flash drives, such as [Kingston Data Traveler SE9](https://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
     * A [PGP Smartcard v2](https://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) (optionally with an external card reader if your computer(s) lack a built-in reader)
+    * A [PGP compatible Yubikey](https://yubico.com/)
     * A third removable drive (for transferring subkeys to devices that don't support smartcards)
 
 Beware that some bulkier USB drives can obstruct adjacent USB ports, preventing a second drive from being connected. It is recommended to use slimline models (such as the one mentioned above) to minimize frustration.
 
-Alternatives to PGP Smartcards exist, such as the [YubiKey NEO](https://www.yubico.com/2012/12/yubikey-neo-openpgp/) (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a partial list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings. YMMV, caveat emptor, etc.
+Alternatives to PGP Smartcards and Yubikeys exist (see the [Debian smartcard support page](https://wiki.debian.org/Smartcards) for a partial list). It is possible to use these with frith, but they may not be as thoroughly tested. If you want to use such a device, check first that it supports 4096-bit RSA keys. Many only support 2048-bit — these may work with frith, but not with its default settings.
 
 Note that frith will never generate a key on the card itself, but will always generate on the computer and then copy to the card. This is so that you can keep a backup of your key material, but it also protects against [poorly-implemented hardware random number generators](http://ieeexplore.ieee.org/document/6994021/?reload=true).
 
@@ -58,9 +53,9 @@ sha256sum frith-install.sh
 ```
 This should produce the following output:
 ```
-44b2807eb86fe644945f3f5d1aa3dcbe41d909dfa5f7295889ea9a4ab8278836  frith-install.sh
+6f19849dd8e601ad3406813e610cbe231dba58e4dcd11b94a86afcce71d79dc7  frith-install.sh
 ```
-8. Only if the above checks out, run the installer. You will be prompted for the temporary administration password:
+8. Only if the above checks out, run the installer. You will be prompted for the temporary administration password ("sudo password"):
 ```
 sudo bash frith-install.sh
 ```
