@@ -1,3 +1,15 @@
+frith (0.1.0~~pre7) andrewg-test; urgency=medium
+
+  * Fix bug in postinst
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Tue, 10 Mar 2020 18:37:45 +0000
+
+frith (0.1.0~~pre6) andrewg-test; urgency=medium
+
+  * Add explicit dependency on libswitch-perl
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Tue, 10 Mar 2020 14:44:20 +0000
+
 frith (0.1.0~~pre5) andrewg-test; urgency=medium
 
   * Add support for gnupg v2.2
