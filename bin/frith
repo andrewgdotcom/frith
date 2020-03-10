@@ -12,7 +12,6 @@ my $version = '0.1';
 # core libs
 use strict;
 use warnings;
-use Switch;
 use Sys::Hostname;
 use File::Path qw/ make_path /;
 use File::Temp qw/ tempfile tempdir /;
@@ -23,6 +22,7 @@ use Time::Piece;
 # common libs in tails
 use File::HomeDir qw(home);		# libfile-homedir-perl
 use DateTime;					# libdatetime-perl
+use Switch;                     # libswitch-perl
 
 # extra debian libs
 use Email::Valid; 				# libemail-valid-perl
