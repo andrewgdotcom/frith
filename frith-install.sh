@@ -6,7 +6,7 @@ set -e
 if [[ $(whoami) != root ]]; then
     # Perform network operations as ordinary user
     TMPDIR=$(mktemp -d)
-    wget https://andrewg.com/andrewg-codesign.pub -O $TMPDIR/andrewg-codesign.asc
+    wget -q https://andrewg.com/andrewg-codesign.pub -O $TMPDIR/andrewg-codesign.asc
     # Now call ourselves recursively
     sudo /usr/bin/env TMPDIR=$TMPDIR /bin/bash $0
 elif [[ ! $TMPDIR && ! $1 ]]; then
