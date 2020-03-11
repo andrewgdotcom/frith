@@ -43,6 +43,7 @@ cat <<EOF > persistence.conf
 /var/cache/apt/archives	source=apt/cache
 /var/lib/apt/lists	source=apt/lists
 /etc/apt/sources.list.d	source=apt/sources.list.d,link
+/etc/apt/trusted.gpg.d	source=apt/trusted.gpg.d,link
 EOF
 
 # Before we continue, trash any stale APT config. Frith is a jealous god.
@@ -52,7 +53,7 @@ rm -rf apt
 
 # ensure the peristent directories are properly created
 
-for i in apt/sources.list.d apt/lists apt/cache; do
+for i in apt/sources.list.d apt/trusted.gpg.d apt/lists apt/cache; do
   if [ ! -d $i ]; then
     mkdir -p $i
   fi
@@ -85,6 +86,7 @@ if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     umount /var/lib/apt/lists || true
     mount -o bind $PWD/apt/lists /var/lib/apt/lists
     ln -sf $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
+    ln -sf $(find $PWD/apt/trusted.gpg.d -type f) /etc/apt/trusted.gpg.d/
 fi
 
 # download the real andrewgdotcom-keyring package
