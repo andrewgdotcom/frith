@@ -77,7 +77,7 @@ EOF
 
 gpg --no-default-keyring --keyring=apt/trusted.gpg.d/andrewg-codesign-temp.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
-rm "apt/trusted.gpg.d/andrewg-codesign.gpg~" || true
+rm "apt/trusted.gpg.d/andrewg-codesign-temp.gpg~" || true
 
 if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     # during early installation, persistent storage must be manually activated
