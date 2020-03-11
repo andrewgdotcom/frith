@@ -80,14 +80,16 @@ gpg --no-default-keyring --keyring=apt/trusted.gpg.d/andrewg-codesign-temp.gpg -
 rm "apt/trusted.gpg.d/andrewg-codesign-temp.gpg~" || true
 
 if [[ -d $PERSISTENT_VOL_SETUP ]]; then
-    # during early installation, persistent storage must be manually activated
+    # during early installation, bind mounts must be explicitly activated
     umount /var/cache/apt/archives || true
     mount -o bind $PERSISTENT_VOL_SETUP/apt/cache /var/cache/apt/archives
     umount /var/lib/apt/lists || true
     mount -o bind $PERSISTENT_VOL_SETUP/apt/lists /var/lib/apt/lists
-    ln -sf $(find $PERSISTENT_VOL_SETUP/apt/sources.list.d -type f) /etc/apt/sources.list.d/
-    ln -sf $(find $PERSISTENT_VOL_SETUP/apt/trusted.gpg.d -type f) /etc/apt/trusted.gpg.d/
 fi
+
+# new soft links will always need to be explicitly activated
+ln -sf $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
+ln -sf $(find $PWD/apt/trusted.gpg.d -type f) /etc/apt/trusted.gpg.d/
 
 # download the real andrewgdotcom-keyring package
 apt-get update
