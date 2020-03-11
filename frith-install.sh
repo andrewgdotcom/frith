@@ -82,9 +82,11 @@ rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 
 if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     # during early installation, persistent storage must be manually activated
+    umount /var/cache/apt/archives || true
     mount -o bind $PWD/apt/cache /var/cache/apt/archives
+    umount /var/lib/apt/lists || true
     mount -o bind $PWD/apt/lists /var/lib/apt/lists
-    ln -s $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
+    ln -sf $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
 fi
 
 # now cache packegas to keep the tails additional software installer happy
