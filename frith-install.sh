@@ -32,7 +32,10 @@ fi
 #
 # NB this will overwrite any existing persistence configuration!
 
-echo frith >> live-additional-software.conf
+cat <<EOF > live-additional-software.conf
+andrewgdotcom-keyring
+frith
+EOF
 
 cat <<EOF > persistence.conf
 /home/amnesia/Persistent	source=Persistent
@@ -67,18 +70,13 @@ fi
 chown tails-persistence-setup:tails-persistence-setup live-additional-software.conf persistence.conf
 chmod og= live-additional-software.conf persistence.conf
 
-# Put our pubkey under sources.list.d and refer to it in the .list file
-# This is safe because apt ignores dotfiles.
-# Don't use trusted.gpg.d as it grants global trust, which is excessive
-# https://wiki.debian.org/DebianRepository/UseThirdParty
-
 cat <<EOF > apt/sources.list.d/andrewg.list
-deb [signed-by=/etc/apt/sources.list.d/.andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
+deb tor+http://andrewg.com/debian andrewg main
 EOF
 
-gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
+gpg --no-default-keyring --keyring=apt/trusted.gpg.d/andrewg-codesign-temp.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
-rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
+rm "apt/trusted.gpg.d/andrewg-codesign.gpg~" || true
 
 if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     # during early installation, persistent storage must be manually activated
@@ -89,12 +87,17 @@ if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     ln -sf $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
 fi
 
-# now cache packegas to keep the tails additional software installer happy
+# download the real andrewgdotcom-keyring package
 apt-get update
+apt-get install andrewgdotcom-keyring
+
+# now cache packages to keep the tails additional software installer happy
 apt-get --download-only install $(<live-additional-software.conf)
 
-# reboot to make sure everything starts up in the right place
+# finally delete the bootstrap signing key
+rm apt/trusted.gpg.d/andrewg-codesign-temp.gpg
 
+# reboot to make sure everything starts up in the right place
 echo "Rebooting in 5s to activate new configuration..."
 sleep 5
 
