@@ -15,11 +15,16 @@ elif [[ ! $TMPDIR && ! $1 ]]; then
 fi
 
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
+PERSISTENT_VOL_SETUP=/media/tails-persistence-setup/TailsData
 
-if [[ "$1" ]]; then
-  cd "$1"
+if [[ -d $PERSISTENT_VOL_SETUP ]]; then
+    # support early installation (i.e. no reboot after configuring persistence)
+    cd $PERSISTENT_VOL_SETUP
+elif [[ -d $PERSISTENT_VOL ]]; then
+    cd $PERSISTENT_VOL
 else
-  cd $PERSISTENT_VOL
+    echo "No persistent disk. Please ensure your persistent disk is configured and unlocked."
+    exit 1
 fi
 
 # configure additional software persistence
@@ -71,17 +76,16 @@ cat <<EOF > apt/sources.list.d/andrewg.list
 deb [signed-by=/etc/apt/sources.list.d/.andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
 EOF
 
-if [[ $1 ]]; then
-    # we are installing in a target (e.g. skeleton) directory; copy from the real one
-    cp -a {$PERSISTENT_VOL/,}apt/sources.list.d/.andrewg-codesign.gpg
-    # don't proceed any further
-    exit 0
-fi
-
-# we are installing locally
 gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
+
+# now bind-mount/link our target directories and cache all necessary files
+mount -o bind $PWD/apt/cache /var/cache/apt/archives
+mount -o bind $PWD/apt/lists /var/lib/apt/lists
+ln -s $PWD/apt/sources.list.d/{*,.*} /etc/apt/sources.list.d
+
+apt-get update && apt-get --download-only $(<live-additional-software.conf)
 
 # reboot to make sure everything starts up in the right place
 
