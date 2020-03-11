@@ -69,6 +69,13 @@ gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --im
 # This might leave a backup file; clean it up
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 
+# now bind-mount/link our target directories and cache all necessary files
+mount -o bind $PERSISTENT_VOL/apt/cache /var/cache/apt/archives
+mount -o bind $PERSISTENT_VOL/apt/lists /var/lib/apt/lists
+ln -s $PERSISTENT_VOL/apt/sources.list.d/{*,.*} /etc/apt/sources.list.d
+
+apt-get update && apt-get --download-only $(<live-additional-software.conf)
+
 # reboot to make sure everything starts up in the right place
 
 echo "Rebooting in 5s to activate new configuration..."
