@@ -12,7 +12,7 @@ Requirements
 ------------
 
 * A computer that can boot from USB and has two usable USB ports
-* A fresh downloaded image of [Tails](https://tails.boum.org/install/) OR a friend who has a copy of frith/Tails that you can borrow
+* A fresh downloaded image of [Tails](https://tails.boum.org/install/)
 * Two 8GB flash drives, such as [Kingston Data Traveler SE9](https://www.amazon.co.uk/Kingston-Technology-DataTraveler-Flash-Casing/dp/B006YBAR0C/ref=pd_sim_sbs_147_1?ie=UTF8&refRID=08PZ6GR4V00M10DAT14P&dpID=31P0IK%2BzEJL&dpSrc=sims&preST=_AC_UL160_SR160%2C160_) (buy in bulk, they're cheap as chips)
 * At least one of:
     * A [PGP Smartcard v2](https://en.cryptoshop.com/products/smartcards/open-pgp-smartcard-v2-id-000.html) (optionally with an external card reader if your computer(s) lack a built-in reader)
@@ -30,13 +30,7 @@ Some devices (smartphones, tablets...) may not be compatible with PGP smartcards
 Getting started
 ---------------
 
-### Installing frith if you (or someone you trust) already have a copy
-
-1. Run frith and go to "Backup and Restore" > "Install frith software on another Tails disk".
-2. It will prompt you for a disk encryption passphrase - use a very strong one.
-3. Boot into the new disk and jump straight to "First time running frith" below.
-
-### Installing frith from scratch
+### Installing frith
 
 WARNING: This will overwrite any persistent configuration you have already set up, so should only be done on a fresh Tails install. We strongly recommended that a Tails drive with frith installed is NOT used for any other purpose, as frith is not supported by the Tails team and may have unexpected side effects.
 
@@ -76,7 +70,9 @@ Remember to store the second Tails disk in a secure remote location.
 Usage
 -----
 
-Once you have your smartcard populated with your subkeys, you can use it on your everyday computer. You will need to download the matching public key first, as the smartcard only contains your private keys. With GnuPG, this is done by incanting the following the first time the smartcard is inserted:
+Once you have your smartcard populated with your subkeys, you can use it on your everyday computer. You will need to download the matching public key first, as the smartcard only contains your private keys.
+
+On your everyday computer, insert the smartcard and run the following in a terminal:
 
 ```
 gpg --card-edit fetch

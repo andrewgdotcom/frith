@@ -239,7 +239,6 @@ my $LA_backup = 'Backup and restore';
 my $LA_laptop = 'Export laptop keys for use';
 my $LA_smartcard = 'Smartcard management';
 my $LA_modify = 'Modify own key';
-my $LA_revoke = 'Revoke own key or subkey';
 my $LA_help = 'Help';
 
 # Sub menus
@@ -253,7 +252,6 @@ my $LA_gen_advanced = 'Advanced key generation';
 my $LA_clone_to_tails = 'Clone to another Tails disk';
 my $LA_backup_to_file = 'Back up to file';
 my $LA_restore_from_file = 'Restore from file';
-my $LA_propagate = "Install ${program} software on another Tails disk";
 
 my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
 my $LA_laptop_to_file = 'Export laptop keys to file';
@@ -274,10 +272,9 @@ my $LA_key_passphrase = 'Change key passphrase';
 my $LA_expire_key = 'Change the expiry on a primary key';
 my $LA_new_subkey = 'Create a new subkey';
 my $LA_expire_subkey = 'Change the expiry on a subkey';
-my $LA_key_advanced = 'Advanced key management';
-
 my $LA_revoke_subkey = 'Revoke a subkey';
 my $LA_revoke_primary = 'Revoke my primary key';
+my $LA_key_advanced = 'Advanced key management';
 
 my $LA_getting_started = 'Getting started wizard';
 my $LA_manual = 'Operations manual';
@@ -292,12 +289,11 @@ my @CH_top = (
 	$LA_laptop,
 	$LA_smartcard,
 	$LA_modify,
-	$LA_revoke,
 	$LA_help,
 );
 
 my @CH_certify = (
-	$LA_cert_scan,
+#	$LA_cert_scan,        # not working
 	$LA_cert_manual,
 	$LA_decert_manual,
 );
@@ -309,7 +305,6 @@ my @CH_backup = (
 	$LA_clone_to_tails,
 	$LA_backup_to_file,
 	$LA_restore_from_file,
-	$LA_propagate,
 );
 my @CH_backup_no_tails = (
 	$LA_backup_to_file,
@@ -339,11 +334,8 @@ my @CH_modify = (
 	$LA_new_subkey,
 	$LA_expire_subkey,
 	$LA_revoke_subkey,
-	$LA_key_advanced,
-);
-my @CH_revoke = (
-	$LA_revoke_subkey,
 	$LA_revoke_primary,
+	$LA_key_advanced,
 );
 my @CH_help = (
 	$LA_manual,
@@ -1411,29 +1403,6 @@ Applications -> Tails -> Tails Installer -> Install by Cloning
 }
 $actionmap{$LA_clone_to_tails} = \&SR_clone_to_tails;
 
-sub SR_propagate() {
-#	print qq[
-#Please insert a Tails USB disk.
-#
-#If you do not have one, clone this image to a blank USB now:
-#Applications -> Tails -> Tails Installer -> Clone and Install
-#
-#...and come back to this window when finished.
-#
-#];
-	print qq[
-Please insert a Tails USB disk.
-
-If you do not have one, you will be prompted to insert a new USB disk.
-This should be >=8GB.
-
-];
-
-	&user_input('Hit return to continue: ');
-	system('tails-clone-persistent', "--source=$skel_location");
-}
-$actionmap{$LA_propagate} = \&SR_propagate;
-
 sub SR_backup_to_file() {
 	### This is ugly as sin. We should use a decent file selector library.
 	my $location_prompt = 'Backup file location';
@@ -2299,9 +2268,6 @@ features it provides, such as offline storage of your primary key.\n\n];
 				}
 				case ($LA_modify) {
 					$subresponse = &make_submenu($LA_modify, @CH_modify);
-				}
-				case ($LA_revoke) {
-					$subresponse = &make_submenu($LA_revoke, @CH_revoke);
 				}
 				case ($LA_help) {
 					$subresponse = &make_submenu($LA_help, @CH_help);

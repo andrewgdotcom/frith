@@ -16,12 +16,6 @@ fi
 
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
 
-if [[ "$1" ]]; then
-  cd "$1"
-else
-  cd $PERSISTENT_VOL
-fi
-
 # configure additional software persistence
 # this is a custom persistence config to let us use non-standard APT repos
 #
@@ -71,14 +65,6 @@ cat <<EOF > apt/sources.list.d/andrewg.list
 deb [signed-by=/etc/apt/sources.list.d/.andrewg-codesign.gpg] tor+http://andrewg.com/debian andrewg main
 EOF
 
-if [[ $1 ]]; then
-    # we are installing in a target (e.g. skeleton) directory; copy from the real one
-    cp -a {$PERSISTENT_VOL/,}apt/sources.list.d/.andrewg-codesign.gpg
-    # don't proceed any further
-    exit 0
-fi
-
-# we are installing locally
 gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
