@@ -47,7 +47,7 @@ sha256sum frith-install.sh
 ```
 This should produce the following output:
 ```
-e832917dc2050845270bdf60fbca84405ea30d5b1490b4380733f2d22ca2291d  frith-install.sh
+155cb3bf2381078e7c42ef80d5d753b3c7f2005b97302ccc55eaf112a38ef0d5  frith-install.sh
 ```
 8. Only if the above checks out, run the installer. You will be prompted for the temporary administration password ("sudo password"):
 ```
