@@ -1,3 +1,9 @@
+frith (0.1.0~~pre8) andrewg-test; urgency=medium
+
+  * Deprecate viral propagation; clean up menus
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Wed, 11 Mar 2020 12:50:15 +0000
+
 frith (0.1.0~~pre7) andrewg-test; urgency=medium
 
   * Fix bug in postinst
