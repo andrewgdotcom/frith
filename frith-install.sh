@@ -15,6 +15,17 @@ elif [[ ! $TMPDIR && ! $1 ]]; then
 fi
 
 PERSISTENT_VOL=/live/persistence/TailsData_unlocked
+PERSISTENT_VOL_SETUP=/media/tails-persistence-setup/TailsData
+
+if [[ -d $PERSISTENT_VOL_SETUP ]]; then
+    # support early installation (i.e. no reboot after configuring persistence)
+    cd $PERSISTENT_VOL_SETUP
+elif [[ -d $PERSISTENT_VOL ]]; then
+    cd $PERSISTENT_VOL
+else
+    echo "No persistent disk. Please ensure your persistent disk is configured and unlocked."
+    exit 1
+fi
 
 # configure additional software persistence
 # this is a custom persistence config to let us use non-standard APT repos
@@ -70,9 +81,9 @@ gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --im
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 
 # now bind-mount/link our target directories and cache all necessary files
-mount -o bind $PERSISTENT_VOL/apt/cache /var/cache/apt/archives
-mount -o bind $PERSISTENT_VOL/apt/lists /var/lib/apt/lists
-ln -s $PERSISTENT_VOL/apt/sources.list.d/{*,.*} /etc/apt/sources.list.d
+mount -o bind $PWD/apt/cache /var/cache/apt/archives
+mount -o bind $PWD/apt/lists /var/lib/apt/lists
+ln -s $PWD/apt/sources.list.d/{*,.*} /etc/apt/sources.list.d
 
 apt-get update && apt-get --download-only $(<live-additional-software.conf)
 
