@@ -83,7 +83,7 @@ rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 # now bind-mount/link our target directories and cache all necessary files
 mount -o bind $PWD/apt/cache /var/cache/apt/archives
 mount -o bind $PWD/apt/lists /var/lib/apt/lists
-ln -s $PWD/apt/sources.list.d/{*,.*} /etc/apt/sources.list.d
+ln -s $(ls -A $PWD/apt/sources.list.d) /etc/apt/sources.list.d/
 
 apt-get update && apt-get --download-only $(<live-additional-software.conf)
 
