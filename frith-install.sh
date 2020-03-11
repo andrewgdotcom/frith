@@ -80,12 +80,16 @@ gpg --no-default-keyring --keyring=apt/sources.list.d/.andrewg-codesign.gpg --im
 # This might leave a backup file; clean it up
 rm "apt/sources.list.d/.andrewg-codesign.gpg~" || echo -n
 
-# now bind-mount/link our target directories and cache all necessary files
-mount -o bind $PWD/apt/cache /var/cache/apt/archives
-mount -o bind $PWD/apt/lists /var/lib/apt/lists
-ln -s $(ls -A $PWD/apt/sources.list.d) /etc/apt/sources.list.d/
+if [[ -d $PERSISTENT_VOL_SETUP ]]; then
+    # during early installation, persistent storage must be manually activated
+    mount -o bind $PWD/apt/cache /var/cache/apt/archives
+    mount -o bind $PWD/apt/lists /var/lib/apt/lists
+    ln -s $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
+fi
 
-apt-get update && apt-get --download-only $(<live-additional-software.conf)
+# now cache packegas to keep the tails additional software installer happy
+apt-get update
+apt-get --download-only install $(<live-additional-software.conf)
 
 # reboot to make sure everything starts up in the right place
 
