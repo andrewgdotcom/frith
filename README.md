@@ -36,11 +36,10 @@ WARNING: This will overwrite any persistent configuration you have already set u
 
 1. Install Tails on the first 8GB flash drive by [following their instructions](https://tails.boum.org/install/)
 2. Boot into the first drive
-3. Configure an encrypted persistent volume as described in the Tails instructions
-4. Reboot
-5. When the greeter appears, enter the passphrase for the persistent drive, then click the "+" for more options
-6. Set a temporary administration password and continue to boot into Tails
-7. Open a terminal and cut and paste the following into it.
+3. When the greeter appears, click the "+" for more options
+4. Set a temporary administration password and continue to boot into Tails
+5. Run Applications ▸ Tails ▸ Configure persistent volume. Choose the defaults at each stage, but do not restart yet.
+6. Open a terminal and cut and paste the following into it.
 ```
 wget -q https://github.com/andrewgdotcom/frith/raw/master/frith-install.sh
 sha256sum frith-install.sh
@@ -49,12 +48,12 @@ This should produce the following output:
 ```
 8cb88ebefcbf4cefb5ed06a072122cc68fb233b19a0db3aedb36de4090a1afcf  frith-install.sh
 ```
-8. Only if the above checks out, run the installer. You will be prompted for the temporary administration password ("sudo password"):
+7. Only if the above checks out, run the installer. You will be prompted for the temporary administration password ("sudo password"):
 ```
 bash frith-install.sh
 ```
 
-9. Tails will automatically reboot. Continue to "First time running frith" below
+8. Tails will automatically reboot. Continue to "First time running frith" below
 
 ### First time running frith
 
