@@ -70,11 +70,9 @@ cat <<EOF > apt/sources.list.d/andrewg.list
 deb tor+http://andrewg.com/debian andrewg main
 EOF
 
-# Create a temporary keyring with the repo signing key. Don't put it in the
+# Store a temporary keyring with the repo signing key. Don't put it in the
 # persistent storage! It will be replaced by the andrewgdotcom-keyring package
-gpg --no-default-keyring --keyring=/etc/apt/trusted.gpg.d/andrewg-codesign-temp.gpg --import $TMPDIR/andrewg-codesign.asc
-# This might leave a backup file; clean it up
-rm "/etc/apt/trusted.gpg.d/andrewg-codesign-temp.gpg~" || true
+cp $TMPDIR/andrewg-codesign.asc /etc/apt/trusted.gpg.d/
 
 if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     # during early installation, bind mounts must be explicitly activated
