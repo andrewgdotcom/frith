@@ -87,7 +87,7 @@ ln -sf $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
 
 # now cache packages to keep the tails additional software installer happy
 apt-get update
-apt-get --download-only install $(<live-additional-software.conf)
+apt-get --download-only -y install $(<live-additional-software.conf)
 
 # reboot to make sure everything starts up in the right place
 echo "Rebooting in 5s to activate new configuration..."
