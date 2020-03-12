@@ -43,7 +43,6 @@ cat <<EOF > persistence.conf
 /var/cache/apt/archives	source=apt/cache
 /var/lib/apt/lists	source=apt/lists
 /etc/apt/sources.list.d	source=apt/sources.list.d,link
-/etc/apt/trusted.gpg.d	source=apt/trusted.gpg.d,link
 EOF
 
 # ensure the peristent directories are properly created
