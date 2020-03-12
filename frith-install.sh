@@ -46,22 +46,17 @@ cat <<EOF > persistence.conf
 /etc/apt/trusted.gpg.d	source=apt/trusted.gpg.d,link
 EOF
 
-# Before we continue, trash any stale APT config. Frith is a jealous god.
-# Also, he screwed up in the past and wants to repent.
-
-rm -rf apt
-
 # ensure the peristent directories are properly created
 
 for i in apt/sources.list.d apt/trusted.gpg.d apt/lists apt/cache; do
-  if [ ! -d $i ]; then
+  if [[ ! -d $i ]]; then
     mkdir -p $i
   fi
 done
 
 # if the user has not already enabled GPG persistence, we must prepopulate it
 
-if [ ! -d gnupg ]; then
+if [[ ! -d gnupg ]]; then
   cp -a /etc/skel/.gnupg gnupg
   chown -R amnesia:amnesia gnupg
 fi
@@ -75,9 +70,11 @@ cat <<EOF > apt/sources.list.d/andrewg.list
 deb tor+http://andrewg.com/debian andrewg main
 EOF
 
-gpg --no-default-keyring --keyring=apt/trusted.gpg.d/andrewg-codesign-temp.gpg --import $TMPDIR/andrewg-codesign.asc
+# Create a temporary keyring with the repo signing key. Don't put it in the
+# persistent storage! It will be replaced by the andrewgdotcom-keyring package
+gpg --no-default-keyring --keyring=/etc/apt/trusted.gpg.d/andrewg-codesign-temp.gpg --import $TMPDIR/andrewg-codesign.asc
 # This might leave a backup file; clean it up
-rm "apt/trusted.gpg.d/andrewg-codesign-temp.gpg~" || true
+rm "/etc/apt/trusted.gpg.d/andrewg-codesign-temp.gpg~" || true
 
 if [[ -d $PERSISTENT_VOL_SETUP ]]; then
     # during early installation, bind mounts must be explicitly activated
@@ -89,17 +86,10 @@ fi
 
 # new soft links will always need to be explicitly activated
 ln -sf $(find $PWD/apt/sources.list.d -type f) /etc/apt/sources.list.d/
-ln -sf $(find $PWD/apt/trusted.gpg.d -type f) /etc/apt/trusted.gpg.d/
-
-# download the real andrewgdotcom-keyring package
-apt-get update
-apt-get install andrewgdotcom-keyring
 
 # now cache packages to keep the tails additional software installer happy
+apt-get update
 apt-get --download-only install $(<live-additional-software.conf)
-
-# finally delete the bootstrap signing key
-rm apt/trusted.gpg.d/andrewg-codesign-temp.gpg
 
 # reboot to make sure everything starts up in the right place
 echo "Rebooting in 5s to activate new configuration..."
