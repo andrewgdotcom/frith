@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 10)
 
 Package: frith
 Architecture: all
-Depends: gnupg, gnupg2, monkeysphere, openssh-client, perl, libfile-homedir-perl, libdatetime-perl, libemail-valid-perl, libswitch-perl, libterm-readkey-perl, perl-term-choose, libexpect-perl, tails-clone-persistent (>= 0.2.0)
+Depends: gnupg, monkeysphere, monkeysign, openssh-client, perl, libfile-homedir-perl, libdatetime-perl, libemail-valid-perl, libswitch-perl, libterm-readkey-perl, perl-term-choose, libexpect-perl, tails-clone-persistent (>= 0.2.0)
 Description: Offline PGP private key vault
 	A tool to simplify best-practice PGP key management. Not recommended for use
 	on general purpose machines (laptops/desktops/servers). Use Tails.
