@@ -788,7 +788,6 @@ sub new_subkey() {
     }
 	my $longusage = join(",", @longusages);
     die "could not parse usage list: $usage" unless $longusage;
-print STDERR "DEBUG: gpg $default_gpg_options --passphrase-fd 0 --quick-add-key $key_id rsa$bits $longusage $expiry\n";
     open(my $gpg_input, '|-', "gpg $default_gpg_options --passphrase-fd 0 --quick-add-key $key_id rsa$bits $longusage $expiry")
         or die "failed to create gpg process\n";
     print $gpg_input "$passphrase\n";
