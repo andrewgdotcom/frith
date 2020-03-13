@@ -1,3 +1,9 @@
+frith (0.1.0~~pre9.2) andrewg-test; urgency=medium
+
+  * Fix bug where smtp settings were wrongly cached
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Fri, 13 Mar 2020 20:30:21 +0000
+
 frith (0.1.0~~pre9.1) andrewg-test; urgency=medium
 
   * Fix error in monkeysign invocation
