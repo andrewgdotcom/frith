@@ -22,11 +22,11 @@ use Time::Piece;
 # common libs in tails
 use File::HomeDir qw(home);		# libfile-homedir-perl
 use DateTime;					# libdatetime-perl
-use Switch;                     # libswitch-perl
 
 # extra debian libs
 use Email::Valid; 				# libemail-valid-perl
 use Term::ReadKey; 				# libterm-readkey-perl
+use Switch;                     # libswitch-perl
 
 # cpan libs (we'll have to package these ourselves)
 # the rpm/alien version of Term::Choose is installed in a stupid place
@@ -145,7 +145,6 @@ sub get_date {
 my $using_tails = 0;
 my $using_tails_persistence = 0;
 my $using_tails_persistence_gpg = 0;
-my $using_tails_persistence_mail = 0;
 my $tails_partition = '';
 
 sub tails_test {
@@ -157,10 +156,6 @@ sub tails_test {
 			if(-d '/live/persistence/TailsData_unlocked/gnupg') {
 				$using_tails_persistence_gpg = 1;
 			}
-			# no, this isn't the test we should use
-			#if(-d '/live/persistence/TailsData_unlocked/claws-mail') {
-			#	$using_tails_persistence_mail = 1;
-			#}
 		}
 		open(my $pipe, '-|', 'mount')
             or die "failed to check mounts\n";
@@ -293,7 +288,7 @@ my @CH_top = (
 );
 
 my @CH_certify = (
-#	$LA_cert_scan,        # not working
+	$LA_cert_scan,
 	$LA_cert_manual,
 	$LA_decert_manual,
 );
@@ -658,18 +653,6 @@ sub edit_key() {
 }
 
 
-############### Certify harnesses
-
-# Should not be required any more now we are farming out to monkeysign
-#
-#sub certify() {
-#	my $key_id = shift;
-#	my $my_key_id = shift;
-#	print qq[DEBUG: certifying key $key_id with key $my_key_id\n] if $CMD_OPTIONS{'debug'};
-#
-#	return system('gpg', '--sign-key', '--local-user', $my_key_id, $key_id);
-#}
-
 ############### Upload, download harnesses
 
 
@@ -928,25 +911,6 @@ sub get_subkey_id() {
 		return $subkey_id;
 	}
 }
-
-#sub get_today_signed_keys() {
-#	my $max_age = shift;
-#	my %key_ids;
-#	my $current_key_id;
-#	my $today = &get_date;
-#
-#	open(my $gpg_output, '-|', "gpg $default_gpg_options --list-sigs")
-#       or die "failed to create gpg process\n";
-#	while(<$gpg_output>) {
-#		if(/Key fingerprint = ([A-F0-9 ]+)$/) {
-#			$current_key_id = $1;
-#			$current_key_id =~ s/\s//g;
-#		} elsif(/^sig \d?\s+0x[A-F0-9]+\s+${today}\s/) {
-#			$key_ids{$current_key_id} = 1;
-#		}
-#	}
-#	return keys(%key_ids);
-#}
 
 
 ################ Expiry harnesses
@@ -1634,21 +1598,7 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 
 # Mostly working
 
-# Emailing out from monkey{scan,sign} on Tails is broken:
-# https://lists.riseup.net/www/arc/monkeysphere/2014-08/msg00012.html
-# We will work around for now.
-
-
 sub SR_cert_scan() {
-#	print qq[
-#BROKEN - DO NOT USE
-#];
-#	return 1;
-
-#	print qq[
-#NOTE: emailing signed keys to owner is not currently working from within
-#Tails, so we will send the signed keys to the keyservers directly.
-#];
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 
@@ -1659,26 +1609,11 @@ sub SR_cert_scan() {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
-# need to capture monkeyscan output and process somehow - does it emit
-# a signed attachment on STDOUT same as monkeysign? Must test.
 	system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
-
-	# Can't tell what key monkeyscan just signed, so we publish any that
-	# were signed today.
-	# This may not work if we happen to sign a key at midnight...!
-# No need to do this if we are capturing monkeyscan output
-#	my @key_ids = &get_today_signed_keys;
-#	for my $key_id (@key_ids) {
-#		&publish($key_id);
-#	}
 }
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 
 sub SR_cert_manual() {
-#	print qq[
-#NOTE: emailing signed keys to owner is not currently working from within
-#Tails, so we will send the signed keys to the keyservers directly.
-#];
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 	my $key_id = &find_public_key('to certify');
@@ -1692,10 +1627,6 @@ sub SR_cert_manual() {
 	}
 
 	system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
-
-#	if(&certify($key_id, $my_key_id)) {
-#		&publish($key_id);
-#	}
 }
 $actionmap{$LA_cert_manual} = \&SR_cert_manual;
 
@@ -1716,7 +1647,6 @@ $actionmap{$LA_decert_manual} = \&SR_decert_manual;
 
 ############### Generation
 
-# All working
 
 sub SR_usedefaults() {
 	print qq[PERSONAL DETAILS\n\n];
@@ -1886,8 +1816,6 @@ $actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
 
 ############### Key info
 
-# all working
-
 sub SR_key_passphrase() {
 	my $key_id = &select_key('to change passphrase for');
 	return 0 unless $key_id;
@@ -1907,7 +1835,6 @@ sub SR_new_uid() {
 	if(&make_yes(qq[add the UID '$name <$email>' to $key_id])) {
 		my $passphrase = &secure_input('Key passphrase: ');
 		&new_uid($key_id, $name, $email, $passphrase);
-#		&mod_hook($key_id);
 		if(&make_yes(qq[republish key $key_id])) {
 			&publish($key_id);
 		}
@@ -1925,7 +1852,6 @@ sub SR_revoke_uid() {
 		if(&make_yes(qq[revoke the UID '$uid' on $key_id])) {
 			my $passphrase = &secure_input('Key passphrase: ');
 			&revoke_uid($key_id, $uid_index, $passphrase);
-#			&mod_hook($key_id);
 			if(&make_yes(qq[republish key $key_id])) {
 				&publish($key_id);
 			}
@@ -1999,7 +1925,6 @@ $actionmap{$LA_key_advanced} = \&SR_key_advanced;
 
 ############## Revocation
 
-# all working
 
 sub SR_revoke_subkey() {
 	print qq[ revoke specific subkey and optionally create a new one\n\n] if $CMD_OPTIONS{'debug'};
@@ -2201,13 +2126,6 @@ sub main() {
 			# configure for gpg
 			$using_tails_persistence_gpg = 1;
 		}
-		if(! $using_tails_persistence_mail) {
-			# Don't complain - there's nothing we can do about this
-			#print "some operations require configuration of persistent mail\n\n";
-			# configure for mail, perhaps
-			$using_tails_persistence_mail = 1; # perhaps
-		}
-		# do something here to make sendmail work as monkeysign expects
 	} else {
 		print qq[${program} is intended to be run from inside a tails live system. While
 it will work on any computer, you will not benefit from all the security
