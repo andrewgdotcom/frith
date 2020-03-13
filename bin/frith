@@ -1692,7 +1692,7 @@ sub SR_cert_manual() {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
-	system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, $key_id);
+	system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
 
 #	if(&certify($key_id, $my_key_id)) {
 #		&publish($key_id);
