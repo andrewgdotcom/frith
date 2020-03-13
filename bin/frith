@@ -1602,10 +1602,10 @@ sub SR_cert_scan() {
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 
-	until($mail_server) {
+	until(my $mail_server) {
 		$mail_server = &user_input('Mail server address: ');
 	}
-	until($mail_username) {
+	until(my $mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
@@ -1619,10 +1619,10 @@ sub SR_cert_manual() {
 	my $key_id = &find_public_key('to certify');
 	return 0 unless $key_id;
 
-	until($mail_server) {
+	until(my $mail_server) {
 		$mail_server = &user_input('Mail server address: ');
 	}
-	until($mail_username) {
+	until(my $mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
