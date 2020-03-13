@@ -1,3 +1,9 @@
+frith (0.1.0~~pre9.1) andrewg-test; urgency=medium
+
+  * Fix error in monkeysign invocation
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Fri, 13 Mar 2020 14:53:07 +0000
+
 frith (0.1.0~~pre9) andrewg-test; urgency=medium
 
   * Add monkeysign dependency
