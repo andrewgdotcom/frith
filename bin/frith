@@ -973,7 +973,7 @@ sub expire_all_subkeys() {
     close($gpg_input);
 }
 
-sub expire_subkey() { # TODO
+sub expire_subkey() {
 	my $key_id = shift;
 	my $subkey_id = shift;
 	my $expiry = shift;
