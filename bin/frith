@@ -1599,13 +1599,15 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 # Mostly working
 
 sub SR_cert_scan() {
+    my $mail_server='';
+    my $mail_username='';
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 
-	until(my $mail_server) {
+	until($mail_server) {
 		$mail_server = &user_input('Mail server address: ');
 	}
-	until(my $mail_username) {
+	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
@@ -1614,15 +1616,17 @@ sub SR_cert_scan() {
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 
 sub SR_cert_manual() {
+    my $mail_server='';
+    my $mail_username='';
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 	my $key_id = &find_public_key('to certify');
 	return 0 unless $key_id;
 
-	until(my $mail_server) {
+	until($mail_server) {
 		$mail_server = &user_input('Mail server address: ');
 	}
-	until(my $mail_username) {
+	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
