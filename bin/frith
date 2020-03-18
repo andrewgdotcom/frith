@@ -237,8 +237,9 @@ my $LA_modify = 'Modify own key';
 my $LA_help = 'Help';
 
 # Sub menus
-my $LA_cert_scan = 'Certify using a QR code (not working)';
-my $LA_cert_manual = 'Certify manually';
+my $LA_cert_scan = 'Certify using a QR code';
+my $LA_cert_manual = 'Certify by fingerprint';
+my $LA_cert_manual_tails = 'Certify by fingerprint';
 my $LA_decert_manual = 'Decertify a key';
 
 my $LA_usedefaults = 'Generate new key with recommended settings';
@@ -287,10 +288,15 @@ my @CH_top = (
 	$LA_help,
 );
 
+# monkeyscan/sign don't work properly in tails
 my @CH_certify = (
-	$LA_cert_scan,
-	$LA_cert_manual,
-	$LA_decert_manual,
+    $LA_cert_manual_tails,
+    $LA_decert_manual,
+);
+my @CH_certify_no_tails = (
+    $LA_cert_scan,
+    $LA_cert_manual,
+    $LA_decert_manual,
 );
 my @CH_generate = (
 	$LA_usedefaults,
@@ -1634,6 +1640,18 @@ sub SR_cert_manual() {
 }
 $actionmap{$LA_cert_manual} = \&SR_cert_manual;
 
+# monkeysign is broken in tails; provide an old-school method
+sub SR_cert_manual_tails() {
+	my $my_key_id = &select_key('to certify with');
+	return 0 unless $my_key_id;
+	my $key_id = &find_public_key('to certify');
+	return 0 unless $key_id;
+
+    system("gpg $default_gpg_options --local-user $my_key_id --sign-key $key_id");
+    &publish($key_id)
+}
+$actionmap{$LA_cert_manual_tails} = \&SR_cert_manual_tails;
+
 sub SR_decert_manual() {
 	my $key_id = &find_public_key('to decertify');
 	if($key_id) {
@@ -2169,7 +2187,11 @@ features it provides, such as offline storage of your primary key.\n\n];
 		for(;;) {
 			switch ($response) {
 				case ($LA_certify) {
-					$subresponse = &make_submenu($LA_certify, @CH_certify);
+					if($using_tails) {
+						$subresponse = &make_submenu($LA_certify, @CH_certify);
+					} else {
+						$subresponse = &make_submenu($LA_certify, @CH_certify_no_tails);
+					}
 				}
 				case ($LA_generate) {
 					$subresponse = &make_submenu($LA_generate, @CH_generate);
