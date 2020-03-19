@@ -239,7 +239,6 @@ my $LA_help = 'Help';
 # Sub menus
 my $LA_cert_scan = 'Certify using a QR code';
 my $LA_cert_manual = 'Certify by fingerprint';
-my $LA_cert_manual_tails = 'Certify by fingerprint';
 my $LA_decert_manual = 'Decertify a key';
 
 my $LA_usedefaults = 'Generate new key with recommended settings';
@@ -288,15 +287,10 @@ my @CH_top = (
 	$LA_help,
 );
 
-# monkeyscan/sign don't work properly in tails
 my @CH_certify = (
-    $LA_cert_manual_tails,
-    $LA_decert_manual,
-);
-my @CH_certify_no_tails = (
     $LA_cert_scan,
     $LA_cert_manual,
-    $LA_decert_manual,
+#    $LA_decert_manual, # beware that publishing revocations to Hagrid is futile
 );
 my @CH_generate = (
 	$LA_usedefaults,
@@ -1602,7 +1596,6 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 
 ############### Certification
 
-# Mostly working
 
 sub SR_cert_scan() {
     my $mail_server='';
@@ -1617,7 +1610,11 @@ sub SR_cert_scan() {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
-	system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
+    if($using_tails) {
+        system('monkeyscan', '--tor', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
+    } else {
+        system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
+    }
 }
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 
@@ -1636,29 +1633,21 @@ sub SR_cert_manual() {
 		$mail_username = &user_input('Mail server username: ');
 	}
 
-	system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+    if($using_tails) {
+        system('monkeyscan', '--tor', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+    } else {
+        system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+    }
 }
 $actionmap{$LA_cert_manual} = \&SR_cert_manual;
-
-# monkeysign is broken in tails; provide an old-school method
-sub SR_cert_manual_tails() {
-	my $my_key_id = &select_key('to certify with');
-	return 0 unless $my_key_id;
-	my $key_id = &find_public_key('to certify');
-	return 0 unless $key_id;
-
-    system("gpg $default_gpg_options --local-user $my_key_id --sign-key $key_id");
-    &publish($key_id)
-}
-$actionmap{$LA_cert_manual_tails} = \&SR_cert_manual_tails;
 
 sub SR_decert_manual() {
 	my $key_id = &find_public_key('to decertify');
 	if($key_id) {
 		&display_key_info($key_id);
 		if(&make_confirm("revoke all certification signatures on $key_id")) {
-            # todo: use $default_gpg_options
-			system('gpg', '--batch', '--yes', '--edit-key', '--keyid-format 0xlong', '--with-fingerprint', $key_id, 'revsig') or die "failed to create gpg process\n";
+			system("gpg $default_gpg_options --batch --yes --edit-key $key_id revsig") or die "failed to create gpg process\n";
+            publish($key_id);
 		}
 	} else {
 		print qq[Key not found\n\n];
@@ -2187,11 +2176,7 @@ features it provides, such as offline storage of your primary key.\n\n];
 		for(;;) {
 			switch ($response) {
 				case ($LA_certify) {
-					if($using_tails) {
-						$subresponse = &make_submenu($LA_certify, @CH_certify);
-					} else {
-						$subresponse = &make_submenu($LA_certify, @CH_certify_no_tails);
-					}
+					$subresponse = &make_submenu($LA_certify, @CH_certify);
 				}
 				case ($LA_generate) {
 					$subresponse = &make_submenu($LA_generate, @CH_generate);
