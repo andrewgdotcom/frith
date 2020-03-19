@@ -1647,7 +1647,7 @@ sub SR_decert_manual() {
 		&display_key_info($key_id);
 		if(&make_confirm("revoke all certification signatures on $key_id")) {
 			system("gpg $default_gpg_options --batch --yes --edit-key $key_id revsig") or die "failed to create gpg process\n";
-            publish($key_id);
+            &publish($key_id);
 		}
 	} else {
 		print qq[Key not found\n\n];
