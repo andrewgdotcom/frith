@@ -1,3 +1,9 @@
+frith (0.1.0~~pre9.8) andrewg-test; urgency=medium
+
+  * Prompt for email password before calling monkeysign
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Mon, 30 Mar 2020 20:12:42 +0100
+
 frith (0.1.0~~pre9.7.1) andrewg-test; urgency=medium
 
   * Packaging error
