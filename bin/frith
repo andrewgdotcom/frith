@@ -1634,9 +1634,9 @@ sub SR_cert_manual() {
 	}
 
     if($using_tails) {
-        system('monkeyscan', '--tor', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+        system('monkeysign', '--tor', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
     } else {
-        system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+        system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
     }
 }
 $actionmap{$LA_cert_manual} = \&SR_cert_manual;
