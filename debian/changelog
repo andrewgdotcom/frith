@@ -1,3 +1,9 @@
+frith (0.1.0~beta1) andrewg-test; urgency=medium
+
+  * Use our dependencies to ensure monkeysign's unstated ones are installed
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Mon, 30 Mar 2020 23:21:37 +0100
+
 frith (0.1.0~~pre9.8) andrewg-test; urgency=medium
 
   * Prompt for email password before calling monkeysign
