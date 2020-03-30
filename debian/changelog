@@ -1,3 +1,9 @@
+frith (0.1.0~~pre9.7) andrewg-test; urgency=medium
+
+  * Fixed error where monkeyscan was called instead of monkeysign
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Mon, 30 Mar 2020 17:42:47 +0100
+
 frith (0.1.0~~pre9.6) andrewg-test; urgency=medium
 
   * Fix silly typos
