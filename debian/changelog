@@ -1,3 +1,9 @@
+frith (0.1.0~~pre9.7.1) andrewg-test; urgency=medium
+
+  * Packaging error
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Mon, 30 Mar 2020 18:06:21 +0100
+
 frith (0.1.0~~pre9.7) andrewg-test; urgency=medium
 
   * Fixed error where monkeyscan was called instead of monkeysign
