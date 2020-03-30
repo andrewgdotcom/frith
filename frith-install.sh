@@ -39,12 +39,6 @@ fi
 cat <<EOF > live-additional-software.conf
 andrewgdotcom-keyring
 frith
-python-gobject-2
-python-gtk2
-python-pil
-python-zbar
-python-zbarpygtk
-python-qrencode
 EOF
 
 cat <<EOF > persistence.conf
