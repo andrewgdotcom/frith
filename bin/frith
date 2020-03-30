@@ -1600,6 +1600,7 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 sub SR_cert_scan() {
     my $mail_server='';
     my $mail_username='';
+    my $mail_password='';
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 
@@ -1609,11 +1610,18 @@ sub SR_cert_scan() {
 	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
+	until($mail_password) {
+		$mail_password = &secure_input('Mail server password: ');
+	}
 
     if($using_tails) {
-        system('monkeyscan', '--tor', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
+        system('monkeyscan', '--tor', '-s', $mail_server,
+            '--smtpuser', $mail_username, '--smtppass', $mail_password,
+            '-u', $my_key_id);
     } else {
-        system('monkeyscan', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id);
+        system('monkeyscan', '-s', $mail_server,
+            '--smtpuser', $mail_username, '--smtppass', $mail_password,
+            '-u', $my_key_id);
     }
 }
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
@@ -1621,6 +1629,7 @@ $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 sub SR_cert_manual() {
     my $mail_server='';
     my $mail_username='';
+    my $mail_password='';
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 	my $key_id = &find_public_key('to certify');
@@ -1632,11 +1641,18 @@ sub SR_cert_manual() {
 	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
 	}
+	until($mail_password) {
+		$mail_password = &secure_input('Mail server password: ');
+	}
 
     if($using_tails) {
-        system('monkeysign', '--tor', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+        system('monkeysign', '--tor', '-s', $mail_server,
+            '--smtpuser', $mail_username, '--smtppass', $mail_password,
+            '-u', $my_key_id, '--', $key_id);
     } else {
-        system('monkeysign', '-s', $mail_server, '--smtpuser', $mail_username, '-u', $my_key_id, '--', $key_id);
+        system('monkeysign', '-s', $mail_server,
+            '--smtpuser', $mail_username, '--smtppass', $mail_password,
+            '-u', $my_key_id, '--', $key_id);
     }
 }
 $actionmap{$LA_cert_manual} = \&SR_cert_manual;
