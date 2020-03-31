@@ -70,8 +70,8 @@ my $reason_invalid = 4;
 my $default_expiry = '2y';
 my $default_bits = 4096;
 
-my $default_laptop_key_dir = catfile(home(),'.ssh');
-my $default_laptop_key_suffix = '_subkeys.gpg';
+my $default_subkeys_dir = catfile(home(),'.ssh');
+my $default_subkeys_suffix = '_subkeys.gpg';
 my $default_ssh_key_suffix = '_id_rsa';
 my $default_ssh_pubkey_suffix = '_id_rsa.pub';
 
@@ -231,9 +231,10 @@ sub detect_smartcard {
 my $LA_certify = 'Certify or decertify another person';
 my $LA_generate = 'Generate new key';
 my $LA_backup = 'Backup and restore';
-my $LA_laptop = 'Export laptop keys for use';
+my $LA_publish = 'Publish your key';
+my $LA_subkeys = 'Export your private subkeys';
 my $LA_smartcard = 'Smartcard management';
-my $LA_modify = 'Modify own key';
+my $LA_modify = 'Modify your key';
 my $LA_help = 'Help';
 
 # Sub menus
@@ -248,9 +249,13 @@ my $LA_clone_to_tails = 'Clone to another Tails disk';
 my $LA_backup_to_file = 'Back up to file';
 my $LA_restore_from_file = 'Restore from file';
 
+my $LA_publish_to_keyserver = 'Publish your key to the keyserver(s)';
+my $LA_publish_to_wks = 'Publish your key to your Web Key Directory';
+my $LA_send_by_email = 'Send your key by email';
+
 my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
-my $LA_laptop_to_file = 'Export laptop keys to file';
-my $LA_laptop_to_smartcard = 'Export laptop keys to smartcard';
+my $LA_subkeys_to_file = 'Export private subkeys to file';
+my $LA_subkeys_to_smartcard = 'Export private subkeys to smartcard';
 
 my $LA_sc_status = 'Print smartcard status';
 my $LA_init_smartcard = 'Initialise smartcard';
@@ -278,13 +283,14 @@ my $LA_manual = 'Operations manual';
 # Arrange our action labels into a menu structure.
 
 my @CH_top = (
-	$LA_certify,
-	$LA_generate,
-	$LA_backup,
-	$LA_laptop,
-	$LA_smartcard,
-	$LA_modify,
-	$LA_help,
+    $LA_certify,
+    $LA_generate,
+    $LA_backup,
+    $LA_publish,
+    $LA_subkeys,
+    $LA_smartcard,
+    $LA_modify,
+    $LA_help,
 );
 
 my @CH_certify = (
@@ -305,13 +311,18 @@ my @CH_backup_no_tails = (
 	$LA_backup_to_file,
 	$LA_restore_from_file,
 );
-my @CH_laptop = (
-	$LA_laptop_to_smartcard,
-	$LA_laptop_to_file,
+my @CH_publish = (
+    $LA_publish_to_keyserver,
+#    $LA_publish_to_wks,
+#    $LA_send_by_email,
+);
+my @CH_subkeys = (
+	$LA_subkeys_to_smartcard,
+	$LA_subkeys_to_file,
 	$LA_ssh_auth_to_file,
 );
 my @CH_smartcard = (
-	$LA_laptop_to_smartcard,
+	$LA_subkeys_to_smartcard,
 	$LA_sc_status,
 	$LA_init_smartcard,
 	$LA_sc_pin,
@@ -661,6 +672,27 @@ sub publish() {
 		system('gpg', '--send-keys', $key_id);
 	}
 }
+
+# sub publish_wks() {
+# 	my $key_id = shift;
+# 	print qq[DEBUG: publishing key $key_id to WKS\n] if $CMD_OPTIONS{'debug'};
+# 	if($CMD_OPTIONS{'nopublish'}) {
+# 		print qq[NOPUBLISH: no data will be published, skipping\n];
+# 	} else {
+#         # TODO
+# 	}
+# }
+
+# sub email_key() {
+# 	my $key_id = shift;
+#     my $mail_recipient=shift;
+#     my $mail_server=shift;
+#     my $mail_username=shift;
+#     my $mail_password=shift;
+# 	print qq[DEBUG: emailing key $key_id\n] if $CMD_OPTIONS{'debug'};
+#
+#     # TODO
+# }
 
 sub download_key() {
 	my $key_id = shift;
@@ -1341,7 +1373,7 @@ sub list_subkeys {
 ######################### Menu actions #########################
 ################################################################
 
-# Define backup and laptop key actions first, as these are required
+# Define backup and subkey export actions first, as these are required
 # by &mod_hook
 
 ############### Backups
@@ -1431,7 +1463,7 @@ sub SR_restore_from_file() {
 $actionmap{$LA_restore_from_file} = \&SR_restore_from_file;
 
 
-############### Laptop keys
+############### Private subkeys
 
 
 sub SR_ssh_auth_to_file() {
@@ -1457,7 +1489,7 @@ necessary if you do not have monkeysphere configured on your client.
 
 	### This is ugly as sin. We should use a decent file selector library.
 	my $location_prompt = 'SSH private key file location';
-	my $location = &ask_with_default($location_prompt, $default_laptop_key_dir);
+	my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
 	return 3 unless $location;
 	if(! -d $location) {
 		if(&make_yes(qq[create the directory $location])) {
@@ -1525,19 +1557,19 @@ necessary if you do not have monkeysphere configured on your client.
 $actionmap{$LA_ssh_auth_to_file} = \&SR_ssh_auth_to_file;
 
 
-sub SR_laptop_to_file() {
+sub SR_subkeys_to_file() {
 	my $key_id = shift;
 	$key_id = &select_key('to write to file') unless $key_id;
 	return 1 unless $key_id;
 
 	print qq[
-Laptop keys can be used to perform everyday PGP actions such as
+Private subkeys can be used to perform everyday PGP actions such as
 decryption, signing and authentication. The only forbidden actions are:
 	a) certifying other people's keys
 	b) modifying your own key
 For this you will require the primary key stored here.
 
-Laptop keys should normally be stored on a removable disk so that they
+Private subkeys should normally be stored on a removable disk so that they
 can be imported into another computer without transferring them over a
 network. You should keep this removable disk safe because the only thing
 protecting your keys is your passphrase. You did set a strong one? ;-)
@@ -1546,33 +1578,33 @@ A more secure alternative is a PGP smartcard. See:
 	https://en.wikipedia.org/wiki/OpenPGP_card
 
 ];
-	return unless &make_yes("export your laptop keys to potentially insecure media");
+	return unless &make_yes("export your private subkeys to potentially insecure media");
 
 	### This is ugly as sin. We should use a decent file selector library.
-	my $location_prompt = 'Laptop key file location';
-	my $location = &ask_with_default($location_prompt, $default_laptop_key_dir);
+	my $location_prompt = 'Private subkey file location';
+	my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
 	return 1 unless $location;
 	while(! -d $location) {
 		print qq[That directory does not exist\n\n];
-		my $location = &ask_with_default($location_prompt, $default_laptop_key_dir);
+		my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
 		return 1 unless $location;
 	}
 
-	my $filename = &ask_with_default('Filename', "$key_id$default_laptop_key_suffix");
+	my $filename = &ask_with_default('Filename', "$key_id$default_subkeys_suffix");
 	return 1 unless $filename;
 
 	my $path = catfile($location, $filename);
-	return unless &make_yes("export your laptop keys to $path");
+	return unless &make_yes("export your private subkeys to $path");
 	system("gpg --export-secret-subkeys --armor $key_id > $path");
 }
-$actionmap{$LA_laptop_to_file} = \&SR_laptop_to_file;
+$actionmap{$LA_subkeys_to_file} = \&SR_subkeys_to_file;
 
 
 ############## Modification hook
 
 # &mod_hook should be called any time the secret key is modified
 # This ensures that the user is prompted to update their backups and
-# laptop keys
+# subkeys
 
 sub mod_hook() {
 	my $key_id = shift;
@@ -1584,9 +1616,9 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 	} else {
 		&SR_backup_to_file;
 	}
-	print qq[YOU SHOULD RE-EXPORT YOUR LAPTOP KEYS NOW\n\n];
-	&SR_laptop_to_smartcard($key_id);
-	&SR_laptop_to_file($key_id);
+	print qq[YOU SHOULD RE-EXPORT YOUR PRIVATE SUBKEYS NOW\n\n];
+	&SR_subkeys_to_smartcard($key_id);
+	&SR_subkeys_to_file($key_id);
 }
 
 
@@ -1711,6 +1743,45 @@ sub SR_gen_advanced() {
 $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
 
 
+############### Publication
+
+
+sub SR_publish_to_keyserver() {
+	my $key_id = &select_key('to publish to the keyserver(s)');
+	return 0 unless $key_id;
+    if(&make_yes(qq[publish key $key_id])) {
+		&publish($key_id);
+    }
+}
+$actionmap{$LA_publish_to_keyserver} = \&SR_publish_to_keyserver;
+
+# sub SR_publish_to_wks() { # TODO
+#
+# }
+# $actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
+
+# sub SR_send_by_email() {
+# 	my $key_id = &select_key('to send via email');
+# 	return 0 unless $key_id;
+#     until($mail_recipient) {
+# 		$mail_recipient = &user_input('Mail to: ');
+# 	}
+# 	until($mail_server) {
+# 		$mail_server = &user_input('Mail server address: ');
+# 	}
+# 	until($mail_username) {
+# 		$mail_username = &user_input('Mail server username: ');
+# 	}
+# 	until($mail_password) {
+# 		$mail_password = &secure_input('Mail server password: ');
+# 	}
+#     if(&make_yes(qq[email key $key_id to $mail_recipient])) {
+# 		&email_key($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
+#     }
+# }
+# $actionmap{$LA_send_by_email} = \&SR_send_by_email;
+
+
 ############### Smartcard
 
 
@@ -1764,7 +1835,7 @@ sub SR_init_smartcard() {
 }
 $actionmap{$LA_init_smartcard} = \&SR_init_smartcard;
 
-sub SR_laptop_to_smartcard() {
+sub SR_subkeys_to_smartcard() {
 	my $key_id = shift;
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
@@ -1790,7 +1861,7 @@ sub SR_laptop_to_smartcard() {
 	&sc_subkey_write($key_id, {#'admin' => $admin, 'passphrase' => $passphrase,
 		's' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
 }
-$actionmap{$LA_laptop_to_smartcard} = \&SR_laptop_to_smartcard;
+$actionmap{$LA_subkeys_to_smartcard} = \&SR_subkeys_to_smartcard;
 
 sub SR_sc_pin() {
 	while(! &detect_smartcard) {
@@ -1838,6 +1909,7 @@ $actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
 
 
 ############### Key info
+
 
 sub SR_key_passphrase() {
 	my $key_id = &select_key('to change passphrase for');
@@ -2047,7 +2119,7 @@ ${program} manages your GnuPG private keys by offering the following
 services:
 
 * Creation, expiry and revocation of keys, subkeys and IDs
-* Export of subkeys to removable media, e.g. PGP smartcard
+* Export of private subkeys to removable media, e.g. PGP smartcard
 * Certification of other people's keys (web of trust)
 * Upload of public keys to keyservers (requires a network connection)
 * Backup and restore to/from secondary media
@@ -2055,12 +2127,12 @@ services:
 It is strongly recommended to use a PGP smartcard for everyday use.
 These store private subkeys in non-retrievable storage and perform
 decryption and signing operations in a tamper-proof processor on the
-card itself. You can thereby use your keys as normal (with a few
+card itself. You can thereby use your subkeys as normal (with a few
 caveats, see next page) on a laptop or desktop computer without ever
 storing private key material on that computer.
 
 If you do not have a PGP smartcard, or if your device/software does not
-support smartcard use, subkeys can be exported in encrypted form
+support smartcard use, private subkeys can be exported in encrypted form
 and saved to a removable drive. This is obviously less secure, and
 should only be done if absolutely necessary.
 ];
@@ -2092,11 +2164,11 @@ you up and running, so long as you have the following to hand:
 * A computer that can boot from USB flash, with two USB ports spare
 * Two flash drives, at least one with Tails and ${program} installed
 	(8GB recommended)
-* A removable device to store your subkeys
+* A removable device to store your private subkeys
 	(PGP smartcard recommended, or a third flash drive in a pinch)
 
 You will be prompted to insert the second Tails drive to create a
-backup before exporting your laptop keys to a removable device. This
+backup before exporting your private subkeys to a removable device. This
 backup should be stored in a safe remote location (such as a relative's
 house) and is equivalent to the original. You only need to make a fresh
 backup after creating new keys or subkeys - everything else can be
@@ -2196,8 +2268,11 @@ features it provides, such as offline storage of your primary key.\n\n];
 						$subresponse = &make_submenu($LA_backup, @CH_backup_no_tails);
 					}
 				}
-				case ($LA_laptop) {
-					$subresponse = &make_submenu($LA_laptop, @CH_laptop);
+				case ($LA_publish) {
+					$subresponse = &make_submenu($LA_publish, @CH_publish);
+				}
+				case ($LA_subkeys) {
+					$subresponse = &make_submenu($LA_subkeys, @CH_subkeys);
 				}
 				case ($LA_smartcard) {
 					$subresponse = &make_submenu($LA_smartcard, @CH_smartcard);
