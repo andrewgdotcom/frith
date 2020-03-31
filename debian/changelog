@@ -1,3 +1,9 @@
+frith (0.1.0~beta2) andrewg-test; urgency=medium
+
+  * Standalone publish option (needed if Hagrid's ID confirmation expires)
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Tue, 31 Mar 2020 17:02:09 +0100
+
 frith (0.1.0~beta1) andrewg-test; urgency=medium
 
   * Use our dependencies to ensure monkeysign's unstated ones are installed
