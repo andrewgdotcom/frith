@@ -341,10 +341,6 @@ my @CH_getting_started = (
 	$LA_usedefaults,
 	$LA_restore_from_file,
 );
-my @CH_getting_started_no_tails = (
-	$LA_usedefaults,
-	$LA_restore_from_file,
-);
 
 
 # Now provide an eval method for actions. Define this above label actions
@@ -2014,11 +2010,7 @@ $actionmap{$LA_revoke_primary} = \&SR_revoke_primary;
 
 sub SR_getting_started() {
 	my $response;
-	if($using_tails) {
-		$response = &make_submenu('GETTING STARTED', @CH_getting_started);
-	} else {
-		$response = &make_submenu('GETTING STARTED', @CH_getting_started_no_tails);
-	}
+	$response = &make_submenu('GETTING STARTED', @CH_getting_started);
 	return unless $response;
 	&evaluate_choice($response);
 }
