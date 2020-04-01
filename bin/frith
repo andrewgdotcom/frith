@@ -799,7 +799,7 @@ sub new_subkey() {
     }
 	my $longusage = join(",", @longusages);
     die "could not parse usage list: $usage" unless $longusage;
-    open(my $gpg_input, '|-', "gpg $default_gpg_options --passphrase-fd 0 --quick-add-key $key_id rsa$bits $longusage $expiry")
+    open(my $gpg_input, '|-', "gpg $default_gpg_options --quick-add-key $key_id rsa$bits $longusage $expiry")
         or die "failed to create gpg process\n";
     print $gpg_input "$passphrase\n";
     close($gpg_input);
@@ -811,7 +811,7 @@ sub new_uid() {
 	my $email = shift;
 	my $passphrase = shift;
 
-    open(my $gpg_input, '|-', "gpg $default_gpg_options --passphrase-fd 0 --quick-add-uid $key_id '$name <$email>'")
+    open(my $gpg_input, '|-', "gpg $default_gpg_options --quick-add-uid $key_id '$name <$email>'")
         or die "failed to create gpg process\n";
     print $gpg_input "$passphrase\n";
     close($gpg_input);
@@ -948,7 +948,7 @@ sub expire_key() {
 	my $expiry = shift;
 	my $passphrase = shift;
 
-    open(my $gpg_input, '|-', "gpg $default_gpg_options --passphrase-fd 0 --quick-set-expire $key_id $expiry")
+    open(my $gpg_input, '|-', "gpg $default_gpg_options --quick-set-expire $key_id $expiry")
         or die "failed to create gpg process\n";
     print $gpg_input "$passphrase\n";
     close($gpg_input);
@@ -959,7 +959,7 @@ sub expire_all_subkeys() {
 	my $expiry = shift;
 	my $passphrase = shift;
 
-    open(my $gpg_input, '|-', "gpg $default_gpg_options --passphrase-fd 0 --quick-set-expire $key_id $expiry '*'")
+    open(my $gpg_input, '|-', "gpg $default_gpg_options --quick-set-expire $key_id $expiry '*'")
         or die "failed to create gpg process\n";
     print $gpg_input "$passphrase\n";
     close($gpg_input);
@@ -971,7 +971,7 @@ sub expire_subkey() {
 	my $expiry = shift;
 	my $passphrase = shift;
 
-    open(my $gpg_input, '|-', "gpg $default_gpg_options --passphrase-fd 0 --quick-set-expire $key_id $expiry $subkey_id")
+    open(my $gpg_input, '|-', "gpg $default_gpg_options --quick-set-expire $key_id $expiry $subkey_id")
         or die "failed to create gpg process\n";
     print $gpg_input "$passphrase\n";
     close($gpg_input);
@@ -1539,7 +1539,7 @@ necessary if you do not have monkeysphere configured on your client.
 	# why do I always end up farming out pipe constructions to bash? :-(
 
 	$redirect = '2>/dev/null' unless $CMD_OPTIONS{'debug'};
-	my $gpg_pid = open(my $gpg_input, '|-', "bash -c 'gpg $default_gpg_options --passphrase-fd 0 --export-options export-reset-subkey-passwd,export-minimal,no-export-attributes --export-secret-subkeys --no-armor $key_id | openpgp2ssh $subkey_id > $path' $redirect")
+	my $gpg_pid = open(my $gpg_input, '|-', "bash -c 'gpg $default_gpg_options --export-options export-reset-subkey-passwd,export-minimal,no-export-attributes --export-secret-subkeys --no-armor $key_id | openpgp2ssh $subkey_id > $path' $redirect")
         or die "failed to create gpg process\n";
 
 	print $gpg_input $passphrase;
