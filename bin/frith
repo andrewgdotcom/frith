@@ -1629,8 +1629,12 @@ sub SR_cert_scan() {
     my $mail_server='';
     my $mail_username='';
     my $mail_password='';
-	my $my_key_id = &select_key('to certify with');
-	return 0 unless $my_key_id;
+# unlike monkeysign, monkeyscan's -u option appears to be a no-op - it
+# defaults to the oldest valid key regardless and you must select the signing
+# key from the dropdown. Don't prompt, so that the user isn't misled.
+# TODO: put this back in once we have got rid of monkeysign/scan (#34)
+#	my $my_key_id = &select_key('to certify with');
+#	return 0 unless $my_key_id;
 
 	until($mail_server) {
 		$mail_server = &user_input('Mail server address: ');
@@ -1644,12 +1648,12 @@ sub SR_cert_scan() {
 
     if($using_tails) {
         system('monkeyscan', '--tor', '-s', $mail_server,
-            '--smtpuser', $mail_username, '--smtppass', $mail_password,
-            '-u', $my_key_id);
+            '--smtpuser', $mail_username, '--smtppass', $mail_password)
+#            '-u', $my_key_id);
     } else {
         system('monkeyscan', '-s', $mail_server,
-            '--smtpuser', $mail_username, '--smtppass', $mail_password,
-            '-u', $my_key_id);
+            '--smtpuser', $mail_username, '--smtppass', $mail_password)
+#            '-u', $my_key_id);
     }
 }
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
