@@ -1259,6 +1259,7 @@ quit
 # need to refactor get_secret_keys for that to be possible tho...
 sub select_key() {
 	my $prompt = shift;
+    my $include_all = shift;
 	my @CH_keys;
 
 	open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys")
@@ -1272,6 +1273,12 @@ sub select_key() {
 			my $created = DateTime->from_epoch(epoch => $fields[5])->iso8601();
 			my $expiry = '';
 			$expiry = DateTime->from_epoch(epoch => $fields[6])->iso8601() if $fields[6];
+            my $expired = ($fields[2] =~ /e/);
+            my $revoked = ($fields[2] =~ /r/);
+            # /d/ in field 2 is deprecated, but let's test for it anyway
+            my $disabled = ($fields[12] =~ /D/ || $fields[2] =~ /d/);
+            next if ! $include_all && ($expired || $revoked || $disabled);
+
             my $line;
             do {
                 $line = <$pipe>;
@@ -1963,7 +1970,7 @@ You must create a new UID first\n\n];
 $actionmap{$LA_revoke_uid} = \&SR_revoke_uid;
 
 sub SR_expire_key() {
-	my $key_id = &select_key('to change expiry');
+	my $key_id = &select_key('to change expiry', 'include_all');
 	return 0 unless $key_id;
 	my $expiry = &ask_expiry;
 	return 0 unless &make_yes("change the expiry on $key_id to $expiry");
