@@ -1258,25 +1258,25 @@ quit
 # rewrite this so it uses get_secret_keys rather than reimplementing
 # need to refactor get_secret_keys for that to be possible tho...
 sub select_key() {
-	my $prompt = shift;
+    my $prompt = shift;
     my $include_all = shift;
-	my @CH_keys;
+    my @CH_keys;
 
-	open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys")
-		or die "failed to create gpg process\n";
-	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
-		chop;
-		if(/^sec:/) {
+    open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys")
+        or die "failed to create gpg process\n";
+    while(<$pipe>) {
+        print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+        chop;
+        if(/^sec:/) {
             my @fields = split(/:/, $_);
-			print "DEBUG: Secret key found $_\n" if $CMD_OPTIONS{'debug'};
-			my $created = DateTime->from_epoch(epoch => $fields[5])->iso8601();
-			my $expiry = '';
-			$expiry = DateTime->from_epoch(epoch => $fields[6])->iso8601() if $fields[6];
-            my $expired = ($fields[2] =~ /e/);
-            my $revoked = ($fields[2] =~ /r/);
+            print "DEBUG: Secret key found $_\n" if $CMD_OPTIONS{'debug'};
+            my @created = split('T', DateTime->from_epoch(epoch => $fields[5])->iso8601());
+            my @expiry = ('', '');
+            @expiry = split('T', DateTime->from_epoch(epoch => $fields[6])->iso8601()) if $fields[6];
+            my $expired = ($fields[1] =~ /e/);
+            my $revoked = ($fields[1] =~ /r/);
             # /d/ in field 2 is deprecated, but let's test for it anyway
-            my $disabled = ($fields[12] =~ /D/ || $fields[2] =~ /d/);
+            my $disabled = ($fields[11] =~ /D/ || $fields[1] =~ /d/);
             next if ! $include_all && ($expired || $revoked || $disabled);
 
             my $line;
@@ -1290,15 +1290,20 @@ sub select_key() {
                 @fields = split(/:/, $line);
             } until($fields[0] eq 'uid');
             my $primuid = $fields[9];
-			push(@CH_keys,"$fingerprint: $primuid $created (expires $expiry)");
-		}
-	}
-	close($pipe);
+            push(@CH_keys,
+                "$fingerprint: $primuid ${created[0]} \[expires: ${expiry[0]}\]" .
+                ($expired?' EXPIRED':'') .
+                ($revoked?' REVOKED':'') .
+                ($disabled?' DISABLED':'')
+            );
+        }
+    }
+    close($pipe);
 
-	my $result = &make_submenu("Select key $prompt", @CH_keys);
-	$result =~ s/^([a-fA-F0-9]+):.*$/$1/ if $result;
+    my $result = &make_submenu("Select key $prompt", @CH_keys);
+    $result =~ s/^([a-fA-F0-9]+):.*$/$1/ if $result;
 
-	return $result;
+    return $result;
 }
 
 sub select_subkey() {
