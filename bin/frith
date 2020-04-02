@@ -80,10 +80,6 @@ my $default_ssh_pubkey_suffix = '_id_rsa.pub';
 my $default_backup_dir = home();
 my $default_backup_file = 'gnupg.tar';
 
-my $mail_server = "";
-my $mail_username = "";
-my $mail_password = "";
-
 my $gpg_location = catfile(home(),'.gnupg');
 
 my $default_gpg_options = "--pinentry-mode loopback --keyid-format 0xlong --with-fingerprint --status-fd 2";
@@ -563,9 +559,11 @@ sub ask_admin_pin() {
 }
 
 sub ask_email() {
+    my $prompt = shift;
+    $prompt = 'Email address: ' unless $prompt;
 	my $email;
 	while (! $email) {
-		$email = &user_input('Email address: ');
+		$email = &user_input($prompt);
 		while($email and ! Email::Valid->address($email)) {
 			$email = &user_input("Not a valid email address!\nEmail address: ");
 		}
@@ -684,10 +682,11 @@ sub publish() {
 
 sub email_key() {
 	my $key_id = shift;
-    my $mail_recipient=shift;
-    my $mail_server=shift;
-    my $mail_username=shift;
-    my $mail_password=shift;
+    my $mail_recipient = shift;
+    my ($mail_server, $port) = split(':', shift);
+    $port = 25 unless $port;
+    my $mail_username = shift;
+    my $mail_password = shift;
     my $tempname = "/tmp/${key_id}.asc";
 	print qq[DEBUG: emailing key $key_id\n] if $CMD_OPTIONS{'debug'};
 
@@ -696,7 +695,7 @@ sub email_key() {
 
     my $transport = Email::Sender::Transport::SMTP->new(
         host=>$mail_server,
-        port=>25,
+        port=>$port,
         ssl=>'starttls',
         sasl_username=>$mail_username,
         sasl_password=>$mail_password,
@@ -1655,9 +1654,9 @@ YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
 
 
 sub SR_cert_scan() {
-    my $mail_server='';
-    my $mail_username='';
-    my $mail_password='';
+    my $mail_server = '';
+    my $mail_username = '';
+    my $mail_password = '';
 # unlike monkeysign, monkeyscan's -u option appears to be a no-op - it
 # defaults to the oldest valid key regardless and you must select the signing
 # key from the dropdown. Don't prompt, so that the user isn't misled.
@@ -1666,7 +1665,7 @@ sub SR_cert_scan() {
 #	return 0 unless $my_key_id;
 
 	until($mail_server) {
-		$mail_server = &user_input('Mail server address: ');
+		$mail_server = &user_input('Mail server address (or address:port): ');
 	}
 	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
@@ -1688,16 +1687,16 @@ sub SR_cert_scan() {
 $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 
 sub SR_cert_manual() {
-    my $mail_server='';
-    my $mail_username='';
-    my $mail_password='';
+    my $mail_server = '';
+    my $mail_username = '';
+    my $mail_password = '';
 	my $my_key_id = &select_key('to certify with');
 	return 0 unless $my_key_id;
 	my $key_id = &find_public_key('to certify');
 	return 0 unless $key_id;
 
 	until($mail_server) {
-		$mail_server = &user_input('Mail server address: ');
+		$mail_server = &user_input('Mail server address (or address:port): ');
 	}
 	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
@@ -1804,10 +1803,10 @@ sub SR_send_by_email() {
 	my $key_id = &select_key('to send via email');
 	return 0 unless $key_id;
     until($mail_recipient) {
-		$mail_recipient = &ask_email;
+		$mail_recipient = &ask_email('Recipient address: ');
 	}
 	until($mail_server) {
-		$mail_server = &user_input('Mail server address: ');
+		$mail_server = &user_input('Mail server address (or address:port): ');
 	}
 	until($mail_username) {
 		$mail_username = &user_input('Mail server username: ');
