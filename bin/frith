@@ -25,6 +25,8 @@ use DateTime;					# libdatetime-perl
 
 # extra debian libs
 use Email::Valid; 				# libemail-valid-perl
+use Email::Sender::Transport::SMTP;  #libemail-sender-perl
+use Email::Stuffer;             # libemail-stuffer-perl
 use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
 
@@ -314,7 +316,7 @@ my @CH_backup_no_tails = (
 my @CH_publish = (
     $LA_publish_to_keyserver,
 #    $LA_publish_to_wks,
-#    $LA_send_by_email,
+    $LA_send_by_email,
 );
 my @CH_subkeys = (
 	$LA_subkeys_to_smartcard,
@@ -567,9 +569,6 @@ sub ask_email() {
 		while($email and ! Email::Valid->address($email)) {
 			$email = &user_input("Not a valid email address!\nEmail address: ");
 		}
-		unless($email) {
-			last if &make_confirm('create a UID with a blank email address');
-		}
 	}
 	return $email;
 }
@@ -683,16 +682,34 @@ sub publish() {
 # 	}
 # }
 
-# sub email_key() {
-# 	my $key_id = shift;
-#     my $mail_recipient=shift;
-#     my $mail_server=shift;
-#     my $mail_username=shift;
-#     my $mail_password=shift;
-# 	print qq[DEBUG: emailing key $key_id\n] if $CMD_OPTIONS{'debug'};
-#
-#     # TODO
-# }
+sub email_key() {
+	my $key_id = shift;
+    my $mail_recipient=shift;
+    my $mail_server=shift;
+    my $mail_username=shift;
+    my $mail_password=shift;
+    my $tempname = "/tmp/${key_id}.asc";
+	print qq[DEBUG: emailing key $key_id\n] if $CMD_OPTIONS{'debug'};
+
+    system("gpg $default_gpg_options --export -a $key_id </dev/null >$tempname") == 0
+        or die "failed to export key\n";
+
+    my $transport = Email::Sender::Transport::SMTP->new(
+        host=>$mail_server,
+        port=>25,
+        ssl=>'starttls',
+        sasl_username=>$mail_username,
+        sasl_password=>$mail_password,
+    );
+
+    Email::Stuffer->to($mail_recipient)
+              ->from($mail_username . '@' . $mail_server)
+              ->subject("PGP key from frith")
+              ->text_body("See attached")
+              ->attach_file($tempname)
+              ->transport($transport)
+              ->send;
+}
 
 sub download_key() {
 	my $key_id = shift;
@@ -1723,6 +1740,9 @@ sub SR_usedefaults() {
 	print qq[PERSONAL DETAILS\n\n];
 	my $name = &ask_name;
 	my $email = &ask_email;
+    unless($email) {
+        return 0 unless &make_confirm('create a key with a blank email address');
+    }
 	my $passphrase = &ask_passphrase;
 	my $expiry = &ask_expiry;
 
@@ -1776,26 +1796,30 @@ $actionmap{$LA_publish_to_keyserver} = \&SR_publish_to_keyserver;
 # }
 # $actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
 
-# sub SR_send_by_email() {
-# 	my $key_id = &select_key('to send via email');
-# 	return 0 unless $key_id;
-#     until($mail_recipient) {
-# 		$mail_recipient = &user_input('Mail to: ');
-# 	}
-# 	until($mail_server) {
-# 		$mail_server = &user_input('Mail server address: ');
-# 	}
-# 	until($mail_username) {
-# 		$mail_username = &user_input('Mail server username: ');
-# 	}
-# 	until($mail_password) {
-# 		$mail_password = &secure_input('Mail server password: ');
-# 	}
-#     if(&make_yes(qq[email key $key_id to $mail_recipient])) {
-# 		&email_key($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
-#     }
-# }
-# $actionmap{$LA_send_by_email} = \&SR_send_by_email;
+sub SR_send_by_email() {
+    my $mail_recipient = '';
+    my $mail_server = '';
+    my $mail_username = '';
+    my $mail_password = '';
+	my $key_id = &select_key('to send via email');
+	return 0 unless $key_id;
+    until($mail_recipient) {
+		$mail_recipient = &ask_email;
+	}
+	until($mail_server) {
+		$mail_server = &user_input('Mail server address: ');
+	}
+	until($mail_username) {
+		$mail_username = &user_input('Mail server username: ');
+	}
+	until($mail_password) {
+		$mail_password = &secure_input('Mail server password: ');
+	}
+    if(&make_yes(qq[email key $key_id to $mail_recipient])) {
+		&email_key($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
+    }
+}
+$actionmap{$LA_send_by_email} = \&SR_send_by_email;
 
 
 ############### Smartcard
@@ -1943,6 +1967,9 @@ sub SR_new_uid() {
 	return 0 unless $key_id;
 	my $name = &ask_name;
 	my $email = &ask_email;
+    unless($email) {
+        return 0 unless &make_confirm('create a UID with a blank email address');
+    }
 	if(&make_yes(qq[add the UID '$name <$email>' to $key_id])) {
 		my $passphrase = &secure_input('Key passphrase: ');
 		&new_uid($key_id, $name, $email, $passphrase);
