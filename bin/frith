@@ -135,6 +135,22 @@ sub get_date {
 }
 
 
+#################### Logging routines #######################
+
+
+sub debug {
+    return 0 unless $CMD_OPTIONS{'debug'};
+    my $message = shift;
+    print "DEBUG: $message\n";
+}
+
+sub debugpipe {
+    return 0 unless $CMD_OPTIONS{'debugpipe'};
+    my $message = shift;
+    print "DEBUGPIPE: $message";
+}
+
+
 #################### Detection routines #######################
 
 # Let's probe to see what Tails features we can detect.
@@ -163,8 +179,7 @@ sub tails_test {
 				last;
 			}
 		}
-		print "DEBUG: detected \$tails_partition = $tails_partition\n"
-			if $CMD_OPTIONS{'debug'};
+		debug "detected \$tails_partition = $tails_partition";
 	}
 }
 
@@ -173,7 +188,7 @@ sub first_time {
 	open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys 2>/dev/null")
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		debugpipe($_);
 		$num_keys ++ if(/^sec:/);
 	}
 	close($pipe);
@@ -194,12 +209,12 @@ sub detect_smartcard {
 	open(my $pipe, '-|', "gpg $default_gpg_options --card-status 2>/dev/null")
 		or return 0;
 	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+        debugpipe($_);
 		chop;
 		if(/^Name of cardholder: \[not set\]$/) {
 			$success = 1;
 			$fresh_smartcard = 1;
-			print "DEBUG: Unset name\n" if $CMD_OPTIONS{'debug'};
+			debug "Unset name";
 		}
 		if(s/^Signature counter : (\d+)$/$1/) {
 			$success = 1;
@@ -211,7 +226,7 @@ sub detect_smartcard {
 	}
 	close($pipe);
 
-	print "DEBUG: Card $success: Signature count $sigs: Freshness $fresh_smartcard\n" if $CMD_OPTIONS{'debug'};
+	debug "Card $success: Signature count $sigs: Freshness $fresh_smartcard";
 	return $success;
 }
 
@@ -311,7 +326,7 @@ my @CH_backup_no_tails = (
 );
 my @CH_publish = (
     $LA_publish_to_keyserver,
-#    $LA_publish_to_wks,
+    $LA_publish_to_wks,
     $LA_send_by_email,
 );
 my @CH_subkeys = (
@@ -360,7 +375,7 @@ my @CH_getting_started = (
 my %actionmap;
 sub evaluate_choice {
 	my $choice = shift;
-	print "You have chosen ${choice}\n\n" if $CMD_OPTIONS{'debug'};
+	debug "You have chosen ${choice}";
 	&{$actionmap{$choice}}();
 }
 
@@ -499,6 +514,25 @@ sub id_filter() {
 	return $input;
 }
 
+sub extract_uids() {
+    my @uids = ();
+    foreach my $uidt (@_) {
+        my $uid = $uidt->{'uid'};
+        push(@uids, $uid);
+        debug "extracted uid $uid";
+    }
+    return \@uids;
+}
+
+sub just_emails() {
+    my @emails = ();
+    foreach my $id (@_) {
+        $id =~ s/.*\<(.*)\>.*/$1/;
+        push(@emails, $id);
+        debug "extracted email $id";
+    }
+    return \@emails;
+}
 
 # Ask for important information and check for restrictions
 
@@ -661,24 +695,50 @@ sub edit_key() {
 
 
 sub publish() {
-	my $key_id = shift;
-	print qq[DEBUG: publishing key $key_id\n] if $CMD_OPTIONS{'debug'};
-	if($CMD_OPTIONS{'nopublish'}) {
-		print qq[NOPUBLISH: no data will be published, skipping\n];
-	} else {
-		system('gpg', '--send-keys', $key_id);
-	}
+    my $key_id = shift;
+    debug qq[publishing key $key_id];
+    if($CMD_OPTIONS{'nopublish'}) {
+        print qq[NOPUBLISH: no data will be published, skipping\n];
+    } else {
+        system('gpg', '--send-keys', $key_id);
+    }
 }
 
-# sub publish_wks() {
-# 	my $key_id = shift;
-# 	print qq[DEBUG: publishing key $key_id to WKS\n] if $CMD_OPTIONS{'debug'};
-# 	if($CMD_OPTIONS{'nopublish'}) {
-# 		print qq[NOPUBLISH: no data will be published, skipping\n];
-# 	} else {
-#         # TODO
-# 	}
-# }
+sub publish_wks() {
+	my $key_id = shift;
+    my $mail_recipient = shift;
+    my ($mail_server, $port) = split(':', shift);
+    $port = 25 unless $port;
+    my $mail_username = shift;
+    my $mail_password = shift;
+    my $tempname = "/tmp/${key_id}.eml";
+    debug qq[publishing key $key_id to WKS];
+    if($CMD_OPTIONS{'nopublish'}) {
+    	print qq[NOPUBLISH: no data will be published, skipping\n];
+        return 0;
+    }
+
+    system("gpg-wks-client --create '$key_id' '$mail_recipient' --output '$tempname'") == 0
+        or die "failed to create WKS request\n";
+
+    my $transport = Email::Sender::Transport::SMTP->new(
+        host=>$mail_server,
+        port=>$port,
+        ssl=>'starttls',
+        sasl_username=>$mail_username,
+        sasl_password=>$mail_password,
+    );
+
+# TODO: this is wrong, this sends the mail as an .eml attachment on a new mail
+# We want to send it as a raw message instead
+    Email::Stuffer->to($mail_recipient)
+              ->from($mail_username . '@' . $mail_server)
+              ->subject("PGP key from frith")
+              ->text_body("See attached")
+              ->attach_file($tempname)
+              ->transport($transport)
+              ->send;
+}
 
 sub email_key() {
 	my $key_id = shift;
@@ -688,9 +748,9 @@ sub email_key() {
     my $mail_username = shift;
     my $mail_password = shift;
     my $tempname = "/tmp/${key_id}.asc";
-	print qq[DEBUG: emailing key $key_id\n] if $CMD_OPTIONS{'debug'};
+    debug qq[emailing key $key_id];
 
-    system("gpg $default_gpg_options --export -a $key_id </dev/null >$tempname") == 0
+    system("gpg $default_gpg_options --export -a '$key_id' >$tempname") == 0
         or die "failed to export key\n";
 
     my $transport = Email::Sender::Transport::SMTP->new(
@@ -716,7 +776,7 @@ sub download_key() {
 	open(my $pipe, '-|', "gpg $default_gpg_options --command-fd 0 --recv-keys $key_id </dev/null 2>&1")
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		debugpipe $_;
 		if(/gpg: Total number processed: 1/) {
 			$success = $key_id;
 		}
@@ -845,7 +905,7 @@ sub get_secret_keys() {
 	open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys </dev/null 2>&1")
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		debugpipe $_;
 		chop;
         if(/^sec:/) {
             my $line;
@@ -856,7 +916,7 @@ sub get_secret_keys() {
             } until($fields[0] eq 'fpr');
             my $fingerprint = $fields[9];
 			push(@secret_key_ids, $fingerprint);
-			print "DEBUG: secret key found $fingerprint\n" if $CMD_OPTIONS{'debug'};
+			debug "secret key found $fingerprint";
 		}
 	}
 	close($pipe);
@@ -872,7 +932,7 @@ sub get_subkeys() {
 	open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys $key_id </dev/null 2>&1")
 		or die "failed to create gpg process\n";
 	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+		debugpipe $_;
         if(/^ssb:/) {
             my @fields = split(/:/, $_);
             my $created = DateTime->from_epoch(epoch => $fields[5])->iso8601();
@@ -895,7 +955,7 @@ sub get_subkeys() {
 				'usage' => $usage,
 				'index' => $index,
 			);
-			print "DEBUG: subkey found $fingerprint $trust $created $expiry $usage\n" if $CMD_OPTIONS{'debug'};
+			debug "subkey found $fingerprint $trust $created $expiry $usage";
 			push(@subkeys, \%subkey_data);
 		}
 	}
@@ -903,27 +963,28 @@ sub get_subkeys() {
 	return @subkeys;
 }
 
-sub get_uids() {
+sub get_uidts() {
 	my $key_id = shift;
-	my @uids;
+	my @uidts;
 
-	open(my $pipe, '-|', "gpg $default_gpg_options --command-fd 0 --edit-key $key_id </dev/null 2>&1")
+	open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-keys $key_id 2>&1")
 		or die "failed to create gpg process\n";
+    my $index = 1;
 	while(<$pipe>) {
-		print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
-		if(/^\[([[:alnum:]]+)\]\s+\(([[:digit:]]+)\)(\.| )\s+(.*)$/) {
+		debugpipe $_;
+        my @fields = split(':');
+		if($fields[0] eq 'uid') {
 			my %uid_data = (
-				'trust' => $1,
-				'index' => $2,
-				'default' => ($3 eq '.'?1:0),
-				'uid' => $4,
+				'trust' => $fields[1],
+				'index' => $index++,
+				'uid' => $fields[9],
 			);
-			print "DEBUG: uid found [$1] ($2)$3 $4\n" if $CMD_OPTIONS{'debug'};
-			push(@uids, \%uid_data);
+			debug "uid found ${fields[9]}";
+			push(@uidts, \%uid_data);
 		}
 	}
 	close($pipe);
-	return @uids;
+	return @uidts;
 }
 
 sub get_subkey_id() {
@@ -932,7 +993,7 @@ sub get_subkey_id() {
 	my $options = shift;
 
 	my $today = &get_date;
-	print "DEBUG: Today's date is $today\n" if $CMD_OPTIONS{'debug'};
+	debug "Today's date is $today";
 
 	my ($subkey_id, $subkey_index);
 	my @subkeys = &get_subkeys($key_id);
@@ -1281,11 +1342,11 @@ sub select_key() {
     open(my $pipe, '-|', "gpg $default_gpg_options --with-colons --list-secret-keys")
         or die "failed to create gpg process\n";
     while(<$pipe>) {
-        print qq[DEBUGPIPE: $_] if $CMD_OPTIONS{'debugpipe'};
+        debugpipe $_;
         chop;
         if(/^sec:/) {
             my @fields = split(/:/, $_);
-            print "DEBUG: Secret key found $_\n" if $CMD_OPTIONS{'debug'};
+            debug "Secret key found $_";
             my @created = split('T', DateTime->from_epoch(epoch => $fields[5])->iso8601());
             my @expiry = ('', '');
             @expiry = split('T', DateTime->from_epoch(epoch => $fields[6])->iso8601()) if $fields[6];
@@ -1348,23 +1409,32 @@ sub select_subkey() {
 sub select_uid() {
 	my $key_id = shift;
 	my $prompt = shift;
-	my @CH_uids;
+    my $uidts = shift;
+    my $with_all = shift;
 
-	for my $uid (@_) {
+    my $all_uids_label = "All UIDs";
+    my @CH_uids;
+    push(@CH_uids, $all_uids_label) if $with_all;
+
+	for my $uidt (@$uidts) {
 		# recreate the gpg uid listing format
-		my $trust = $uid->{'trust'};
-		my $index = $uid->{'index'};
-		my $default = $uid->{'default'}?'.':' ';
-		my $uid_name = $uid->{'uid'};
-		next unless $trust eq 'ultimate';
-		my $entry = "[$trust] ($index)$default $uid_name";
+		my $trust = $uidt->{'trust'};
+		my $index = $uidt->{'index'};
+		my $uid = $uidt->{'uid'};
+		next unless $trust eq 'u';
+		my $entry = "[$trust] ($index) $uid";
 		push(@CH_uids, $entry);
 	}
 
 	my $result = &make_submenu(qq[Select UID of $key_id $prompt], @CH_uids);
-	if($result and $result =~ /^\[[[:alnum:]]+\] \(([[:digit:]]+)\)(\.| ) (.*)$/) {
+    debug "uid selected ${result}";
+    return (0, '') unless $result;
+    if($with_all and ($result eq $all_uids_label)) {
+        return (-1, $result);
+    }
+	if($result =~ /^\[[[:alnum:]]+\]\s+\(([[:digit:]]+)\)\s+(.*)$/) {
 		# uid_index, uid
-		return ($1, $3);
+		return ($1, $2);
 	}
 }
 
@@ -1502,7 +1572,7 @@ sub SR_ssh_auth_to_file() {
 	return 1 unless $key_id;
 
 	my $subkey_id = &get_subkey_id($key_id, 'A');
-	print "DEBUG: Subkey id $subkey_id\n" if $CMD_OPTIONS{'debug'};
+	debug "Subkey id $subkey_id";
 	unless($subkey_id) {
 		print "No valid auth subkey found on key $key_id\n";
 		return 2;
@@ -1782,40 +1852,72 @@ $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
 
 
 sub SR_publish_to_keyserver() {
-	my $key_id = &select_key('to publish to the keyserver(s)');
-	return 0 unless $key_id;
+    my $key_id = &select_key('to publish to the keyserver(s)');
+    return 0 unless $key_id;
     if(&make_yes(qq[publish key $key_id])) {
-		&publish($key_id);
+        &publish($key_id);
     }
 }
 $actionmap{$LA_publish_to_keyserver} = \&SR_publish_to_keyserver;
 
-# sub SR_publish_to_wks() { # TODO
-#
-# }
-# $actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
+sub SR_publish_to_wks() {
+    my $mail_recipients; # array ref
+    my $mail_server = '';
+    my $mail_username = '';
+    my $mail_password = '';
+    my $key_id = &select_key('to publish to the Web Key Directory');
+    return 0 unless $key_id;
+
+    my @uidts = &get_uidts($key_id);
+    my ($uid_index, $uid) = &select_uid($key_id, 'to publish', \@uidts, 'with_all');
+    debug "$uid_index, $uid";
+    return 0 unless $uid;
+    if($uid_index == -1) {
+        return 0 unless &make_yes(qq[publish all UIDs on $key_id]);
+        my $recipient_uids = &extract_uids(@uidts);
+        $mail_recipients = &just_emails(@$recipient_uids);
+    } else {
+        $mail_recipients = &just_emails($uid);
+    }
+    debug "recipients " . join(',', @$mail_recipients);
+    until($mail_server) {
+        $mail_server = &user_input('Mail server address (or address:port): ');
+    }
+    until($mail_username) {
+        $mail_username = &user_input('Mail server username: ');
+    }
+    until($mail_password) {
+        $mail_password = &secure_input('Mail server password: ');
+    }
+    if(&make_yes(qq[publish key $key_id to the Web Key Directory])) {
+        foreach my $mail_recipient (@$mail_recipients) {
+            &publish_wks($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
+        }
+    }
+}
+$actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
 
 sub SR_send_by_email() {
     my $mail_recipient = '';
     my $mail_server = '';
     my $mail_username = '';
     my $mail_password = '';
-	my $key_id = &select_key('to send via email');
-	return 0 unless $key_id;
+    my $key_id = &select_key('to send via email');
+    return 0 unless $key_id;
     until($mail_recipient) {
-		$mail_recipient = &ask_email('Recipient address: ');
-	}
-	until($mail_server) {
-		$mail_server = &user_input('Mail server address (or address:port): ');
-	}
-	until($mail_username) {
-		$mail_username = &user_input('Mail server username: ');
-	}
-	until($mail_password) {
-		$mail_password = &secure_input('Mail server password: ');
-	}
+        $mail_recipient = &ask_email('Recipient address: ');
+    }
+    until($mail_server) {
+        $mail_server = &user_input('Mail server address (or address:port): ');
+    }
+    until($mail_username) {
+        $mail_username = &user_input('Mail server username: ');
+    }
+    until($mail_password){
+        $mail_password = &secure_input('Mail server password: ');
+    }
     if(&make_yes(qq[email key $key_id to $mail_recipient])) {
-		&email_key($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
+        &email_key($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
     }
 }
 $actionmap{$LA_send_by_email} = \&SR_send_by_email;
@@ -1982,9 +2084,9 @@ $actionmap{$LA_new_uid} = \&SR_new_uid;
 sub SR_revoke_uid() {
 	my $key_id = &select_key('to revoke UID from');
 	return 0 unless $key_id;
-	my @uids = &get_uids($key_id);
-	if ((scalar @uids) > 1) {
-		my ($uid_index, $uid) = &select_uid($key_id, 'to revoke', @uids);
+	my @uidts = &get_uidts($key_id);
+	if ((scalar @uidts) > 1) {
+		my ($uid_index, $uid) = &select_uid($key_id, 'to revoke', \@uidts);
 		return 0 unless $uid;
 		if(&make_yes(qq[revoke the UID '$uid' on $key_id])) {
 			my $passphrase = &secure_input('Key passphrase: ');
@@ -2064,7 +2166,7 @@ $actionmap{$LA_key_advanced} = \&SR_key_advanced;
 
 
 sub SR_revoke_subkey() {
-	print qq[ revoke specific subkey and optionally create a new one\n\n] if $CMD_OPTIONS{'debug'};
+	debug qq[revoke specific subkey and optionally create a new one];
 	my $key_id = &select_key('with subkey to revoke');
 	return 0 unless $key_id;
 
@@ -2100,7 +2202,7 @@ sub SR_revoke_subkey() {
 $actionmap{$LA_revoke_subkey} = \&SR_revoke_subkey;
 
 sub SR_revoke_primary() {
-	print qq[ the big one. choose a primary key and nuke it\n\n] if $CMD_OPTIONS{'debug'};
+	debug qq[the big one. choose a primary key and nuke it];
 	my $key_id = &select_key('to revoke');
 	return 0 unless &make_confirm(qq[revoke the key ${key_id}]);
 	my $passphrase = &secure_input('Key passphrase: ');
