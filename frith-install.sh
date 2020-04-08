@@ -32,10 +32,6 @@ fi
 #
 # NB this will overwrite any existing persistence configuration!
 
-# Note that we have to add several of monkeysign's undeclared dependencies
-# in order to make it usable.
-# See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=954221
-
 cat <<EOF > live-additional-software.conf
 andrewgdotcom-keyring
 frith
