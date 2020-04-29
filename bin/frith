@@ -26,6 +26,7 @@ use DateTime;					# libdatetime-perl
 # extra debian libs
 use Email::Valid; 				# libemail-valid-perl
 use Email::Sender::Transport::SMTP;  #libemail-sender-perl
+use Email::Sender::Simple;      # ditto
 use Email::Stuffer;             # libemail-stuffer-perl
 use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
@@ -706,20 +707,16 @@ sub publish() {
 
 sub publish_wks() {
 	my $key_id = shift;
-    my $mail_recipient = shift;
+    my $email_id = shift;
     my ($mail_server, $port) = split(':', shift);
     $port = 25 unless $port;
     my $mail_username = shift;
     my $mail_password = shift;
-    my $tempname = "/tmp/${key_id}.eml";
     debug qq[publishing key $key_id to WKS];
     if($CMD_OPTIONS{'nopublish'}) {
     	print qq[NOPUBLISH: no data will be published, skipping\n];
         return 0;
     }
-
-    system("gpg-wks-client --create '$key_id' '$mail_recipient' --output '$tempname'") == 0
-        or die "failed to create WKS request\n";
 
     my $transport = Email::Sender::Transport::SMTP->new(
         host=>$mail_server,
@@ -729,15 +726,14 @@ sub publish_wks() {
         sasl_password=>$mail_password,
     );
 
-# TODO: this is wrong, this sends the mail as an .eml attachment on a new mail
-# We want to send it as a raw message instead
-    Email::Stuffer->to($mail_recipient)
-              ->from($mail_username . '@' . $mail_server)
-              ->subject("PGP key from frith")
-              ->text_body("See attached")
-              ->attach_file($tempname)
-              ->transport($transport)
-              ->send;
+    open(my $handle, '-|', "/usr/lib/gnupg/gpg-wks-client --create '$key_id' '$email_id'")
+        or die "failed to create WKS request\n";
+
+    Email::Sender::Simple->try_to_send(
+        do { local $/; <$handle>},
+        { transport=>$transport }
+    ) or die "failed to send email\n";
+    close($handle);
 }
 
 sub email_key() {
@@ -762,12 +758,13 @@ sub email_key() {
     );
 
     Email::Stuffer->to($mail_recipient)
-              ->from($mail_username . '@' . $mail_server)
-              ->subject("PGP key from frith")
-              ->text_body("See attached")
-              ->attach_file($tempname)
-              ->transport($transport)
-              ->send;
+        ->from($mail_username . '@' . $mail_server)
+        ->subject("PGP key from frith")
+        ->text_body("See attached")
+        ->attach_file($tempname)
+        ->transport($transport)
+        ->send;
+    unlink $tempname unless $CMD_OPTIONS{'debug'};
 }
 
 sub download_key() {
@@ -851,6 +848,7 @@ Passphrase: $passphrase
 		};
 	}
 
+    unlink $tempname unless $CMD_OPTIONS{'debug'};
 	return $key_id;
 }
 
@@ -1861,7 +1859,7 @@ sub SR_publish_to_keyserver() {
 $actionmap{$LA_publish_to_keyserver} = \&SR_publish_to_keyserver;
 
 sub SR_publish_to_wks() {
-    my $mail_recipients; # array ref
+    my $email_ids; # array ref
     my $mail_server = '';
     my $mail_username = '';
     my $mail_password = '';
@@ -1874,12 +1872,12 @@ sub SR_publish_to_wks() {
     return 0 unless $uid;
     if($uid_index == -1) {
         return 0 unless &make_yes(qq[publish all UIDs on $key_id]);
-        my $recipient_uids = &extract_uids(@uidts);
-        $mail_recipients = &just_emails(@$recipient_uids);
+        my $full_uids = &extract_uids(@uidts);
+        $email_ids = &just_emails(@$full_uids);
     } else {
-        $mail_recipients = &just_emails($uid);
+        $email_ids = &just_emails($uid);
     }
-    debug "recipients " . join(',', @$mail_recipients);
+    debug "uids " . join(',', @$email_ids);
     until($mail_server) {
         $mail_server = &user_input('Mail server address (or address:port): ');
     }
@@ -1890,8 +1888,8 @@ sub SR_publish_to_wks() {
         $mail_password = &secure_input('Mail server password: ');
     }
     if(&make_yes(qq[publish key $key_id to the Web Key Directory])) {
-        foreach my $mail_recipient (@$mail_recipients) {
-            &publish_wks($key_id, $mail_recipient, $mail_server, $mail_username, $mail_password);
+        foreach my $email_id (@$email_ids) {
+            &publish_wks($key_id, $email_id, $mail_server, $mail_username, $mail_password);
         }
     }
 }
