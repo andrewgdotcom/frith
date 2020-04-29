@@ -22,6 +22,7 @@ use Time::Piece;
 # common libs in tails
 use File::HomeDir qw(home);		# libfile-homedir-perl
 use DateTime;					# libdatetime-perl
+use Try::Tiny;                  # libtry-tiny-perl
 
 # extra debian libs
 use Email::Valid; 				# libemail-valid-perl
@@ -729,10 +730,14 @@ sub publish_wks() {
     open(my $handle, '-|', "/usr/lib/gnupg/gpg-wks-client --create '$key_id' '$email_id'")
         or die "failed to create WKS request\n";
 
-    Email::Sender::Simple->try_to_send(
-        do { local $/; <$handle>},
-        { transport=>$transport }
-    ) or die "failed to send email\n";
+    try {
+        Email::Sender::Simple->send(
+            do { local $/; <$handle>},
+            { transport=>$transport }
+        );
+    } catch {
+        print $_->message . "\n";
+    };
     close($handle);
 }
 
@@ -757,13 +762,17 @@ sub email_key() {
         sasl_password=>$mail_password,
     );
 
-    Email::Stuffer->to($mail_recipient)
-        ->from($mail_username . '@' . $mail_server)
-        ->subject("PGP key from frith")
-        ->text_body("See attached")
-        ->attach_file($tempname)
-        ->transport($transport)
-        ->send;
+    try {
+        Email::Stuffer->to($mail_recipient)
+            ->from($mail_username . '@' . $mail_server)
+            ->subject("PGP key from frith")
+            ->text_body("See attached")
+            ->attach_file($tempname)
+            ->transport($transport)
+            ->send;
+    } catch {
+        print $_->message . "\n";
+    };
     unlink $tempname unless $CMD_OPTIONS{'debug'};
 }
 
