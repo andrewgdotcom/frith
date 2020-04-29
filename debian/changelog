@@ -1,3 +1,9 @@
+frith (0.1.0~beta3) andrewg-test; urgency=medium
+
+  * Publish to WKS, send by email, various bugfixes
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Wed, 29 Apr 2020 19:04:23 +0100
+
 frith (0.1.0~beta2) andrewg-test; urgency=medium
 
   * Standalone publish option (needed if Hagrid's ID confirmation expires)
