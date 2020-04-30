@@ -267,6 +267,7 @@ my $LA_restore_from_file = 'Restore from file';
 my $LA_publish_to_keyserver = 'Publish your key to the keyserver(s)';
 my $LA_publish_to_wks = 'Publish your key to your Web Key Directory';
 my $LA_send_by_email = 'Send your key by email';
+my $LA_save_to_file = 'Save your key to a file';
 
 my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
 my $LA_subkeys_to_file = 'Export private subkeys to file';
@@ -330,6 +331,7 @@ my @CH_publish = (
     $LA_publish_to_keyserver,
     $LA_publish_to_wks,
     $LA_send_by_email,
+    $LA_save_to_file,
 );
 my @CH_subkeys = (
 	$LA_subkeys_to_smartcard,
@@ -748,7 +750,8 @@ sub email_key() {
     $port = 25 unless $port;
     my $mail_username = shift;
     my $mail_password = shift;
-    my $tempname = "/tmp/${key_id}.asc";
+    my $tempdir = tempdir();
+    my $tempname = catfile($tempdir, "${key_id}.asc");
     debug qq[emailing key $key_id];
 
     system("gpg $default_gpg_options --export -a '$key_id' >$tempname") == 0
@@ -774,6 +777,7 @@ sub email_key() {
         print $_->message . "\n";
     };
     unlink $tempname unless $CMD_OPTIONS{'debug'};
+    rmdir $tempdir unless $CMD_OPTIONS{'debug'};
 }
 
 sub download_key() {
@@ -789,6 +793,13 @@ sub download_key() {
 	}
 	close($pipe);
 	return $success;
+}
+
+sub export_key() {
+    my $key_id = shift;
+    my $output_file = shift;
+	system("gpg $default_gpg_options --armor --export $key_id > $output_file") == 0
+		or die "failed to create gpg process\n";
 }
 
 
@@ -828,7 +839,7 @@ sub new_primarykey() {
 	# send the gpg output to a spool file so we can extract the fpr
 	# of the new key later, otherwise we'll have no idea which key we
 	# just created
-	my $tempname = "/tmp/${program}-$$";
+	my $tempname = tempfile();
 	open(my $gpg_input, '|-', "gpg $default_gpg_options --batch --command-fd 0 --gen-key --expert >$tempname 2>&1")
 		or die "failed to create gpg process\n";
 	print $gpg_input qq[%echo start
@@ -1928,6 +1939,14 @@ sub SR_send_by_email() {
     }
 }
 $actionmap{$LA_send_by_email} = \&SR_send_by_email;
+
+sub SR_save_to_file() {
+    my $key_id = &select_key('to export');
+    my $output_file = catfile(home(), "${key_id}.asc");
+    &export_key($key_id, $output_file);
+    print qq[Key written to $output_file\n];
+}
+$actionmap{$LA_save_to_file} = \&SR_save_to_file;
 
 
 ############### Smartcard
