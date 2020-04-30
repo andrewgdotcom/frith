@@ -914,8 +914,8 @@ sub new_uid() {
 ################## Extract info for further processing harnesses
 
 
-# rewrite this so it returns secret key structures rather than just the
-# IDs - this will save some reimplementation in other routines below.
+# TODO: rewrite this so it returns secret key structures rather than just the
+# IDs - this will save some reimplementation in other routines below. #47
 sub get_secret_keys() {
 	my @secret_key_ids;
 
@@ -1349,8 +1349,8 @@ quit
 ############### User selection tools ###############
 ####################################################
 
-# rewrite this so it uses get_secret_keys rather than reimplementing
-# need to refactor get_secret_keys for that to be possible tho...
+# TODO: rewrite this so it uses get_secret_keys rather than reimplementing
+# need to refactor get_secret_keys for that to be possible tho... #41
 sub select_key() {
     my $prompt = shift;
     my $include_all = shift;
@@ -1631,11 +1631,11 @@ necessary if you do not have monkeysphere configured on your client.
 	close $pgp2ssh_output;
 	chmod 0600, $path;
 
-	# export the private key
+	# export the private key (TODO: #42)
 	# THIS IS BAD, as we (briefly) store the unencrypted key on disk
 	# unfortunately ssh-keygen only edits key files in place #facepalm
 
-	# TODO: error handling!!!!
+	# TODO: error handling!!!! #43
 
 	# we need to supply the passphrase to gpg via STDIN
 	# tried chaining a pair of open2()s, but it all went pete tong
@@ -2038,7 +2038,7 @@ sub SR_sc_pin() {
 $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 
 # Not immediately necessary
-#sub SR_sc_name() { # TODO
+#sub SR_sc_name() { # TODO #44
 #	while(! &detect_smartcard) {
 #		return 0 unless &prompt_insert_sc;
 #	}
@@ -2047,7 +2047,7 @@ $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 #$actionmap{$LA_sc_name} = \&SR_sc_name;
 
 # Not immediately necessary
-#sub SR_sc_lang() { # TODO
+#sub SR_sc_lang() { # TODO #45
 #	while(! &detect_smartcard) {
 #		return 0 unless &prompt_insert_sc;
 #	}
@@ -2056,7 +2056,7 @@ $actionmap{$LA_sc_pin} = \&SR_sc_pin;
 #$actionmap{$LA_sc_lang} = \&SR_sc_lang;
 
 # Not immediately necessary
-#sub SR_sc_keylocation() { # TODO
+#sub SR_sc_keylocation() { # TODO #46
 #	while(! &detect_smartcard) {
 #		return 0 unless &prompt_insert_sc;
 #	}
