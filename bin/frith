@@ -805,7 +805,7 @@ sub download_key() {
 
 ################ Show info harnesses
 
-# These are ugly. Rework as per show_subkeys
+# TODO: These are ugly. Rework as per show_subkeys #48
 
 sub display_key_info() {
 	my $key_id = shift;
@@ -813,6 +813,7 @@ sub display_key_info() {
 }
 
 sub list_secret_keys() {
+    # TODO: only show usable keys by default #49
 	system('gpg', '--list-secret-keys', '--keyid-format', '0xlong', '--with-fingerprint');
 }
 
