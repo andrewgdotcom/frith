@@ -2181,7 +2181,7 @@ sub SR_expire_subkey() {
 $actionmap{$LA_expire_subkey} = \&SR_expire_subkey;
 
 sub SR_key_advanced() {
-	my $key_id = &select_key('to edit');
+	my $key_id = &select_key('to edit', 'include_all');
 	return 0 unless $key_id;
 	print("Type 'help' for help, 'quit' to return to menu\n");
 	system('gpg', '--edit-key', '--with-fingerprint', '--expert', $key_id);
