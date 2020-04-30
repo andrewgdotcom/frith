@@ -694,6 +694,13 @@ sub edit_key() {
 	close $gpg_input;
 }
 
+sub export_key() {
+    my $key_id = shift;
+    my $output_file = shift;
+	system("gpg $default_gpg_options --armor --export $key_id > $output_file") == 0
+		or die "failed to export key\n";
+}
+
 
 ############### Upload, download harnesses
 
@@ -754,8 +761,7 @@ sub email_key() {
     my $tempname = catfile($tempdir, "${key_id}.asc");
     debug qq[emailing key $key_id];
 
-    system("gpg $default_gpg_options --export -a '$key_id' >$tempname") == 0
-        or die "failed to export key\n";
+    &export_key($key_id, $tempname);
 
     my $transport = Email::Sender::Transport::SMTP->new(
         host=>$mail_server,
@@ -793,13 +799,6 @@ sub download_key() {
 	}
 	close($pipe);
 	return $success;
-}
-
-sub export_key() {
-    my $key_id = shift;
-    my $output_file = shift;
-	system("gpg $default_gpg_options --armor --export $key_id > $output_file") == 0
-		or die "failed to create gpg process\n";
 }
 
 
