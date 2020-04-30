@@ -1,3 +1,9 @@
+frith (0.1.0~beta4) andrewg-test; urgency=medium
+
+  * Implemented save to file, better error handling
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Thu, 30 Apr 2020 10:19:48 +0100
+
 frith (0.1.0~beta3) andrewg-test; urgency=medium
 
   * Publish to WKS, send by email, various bugfixes
