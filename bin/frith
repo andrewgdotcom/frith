@@ -758,6 +758,7 @@ sub email_key() {
     my $mail_username = shift;
     my $mail_password = shift;
     my $tempdir = tempdir();
+    debug qq[saving file in temporary dir $tempdir];
     my $tempname = catfile($tempdir, "${key_id}.asc");
     debug qq[emailing key $key_id];
 
@@ -838,7 +839,8 @@ sub new_primarykey() {
 	# send the gpg output to a spool file so we can extract the fpr
 	# of the new key later, otherwise we'll have no idea which key we
 	# just created
-	my $tempname = tempfile();
+	(undef, my $tempname) = tempfile();
+    debug qq[saving output in temporary file $tempname];
 	open(my $gpg_input, '|-', "gpg $default_gpg_options --batch --command-fd 0 --gen-key --expert >$tempname 2>&1")
 		or die "failed to create gpg process\n";
 	print $gpg_input qq[%echo start
