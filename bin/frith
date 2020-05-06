@@ -19,16 +19,14 @@ use File::Spec::Functions qw(catfile);
 use Time::Piece;
 #use IPC::Open2;
 
-# common libs in tails
+# extra debian libs
 use File::HomeDir qw(home);		# libfile-homedir-perl
 use DateTime;					# libdatetime-perl
 use Try::Tiny;                  # libtry-tiny-perl
-
-# extra debian libs
 use Email::Valid; 				# libemail-valid-perl
 use Email::Sender::Transport::SMTP;  #libemail-sender-perl
 use Email::Sender::Simple;      # ditto
-use Email::Stuffer;             # libemail-stuffer-perl
+use Email::MIME;                # libemail-mime-perl
 use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
 
@@ -697,7 +695,7 @@ sub edit_key() {
 sub export_key() {
     my $key_id = shift;
     my $output_file = shift;
-	system("gpg $default_gpg_options --armor --export $key_id > $output_file") == 0
+	system("gpg $default_gpg_options --armor --export '$key_id' > $output_file") == 0
 		or die "failed to export key\n";
 }
 
@@ -757,12 +755,7 @@ sub email_key() {
     $port = 25 unless $port;
     my $mail_username = shift;
     my $mail_password = shift;
-    my $tempdir = tempdir();
-    debug qq[saving file in temporary dir $tempdir];
-    my $tempname = catfile($tempdir, "${key_id}.asc");
     debug qq[emailing key $key_id];
-
-    &export_key($key_id, $tempname);
 
     my $transport = Email::Sender::Transport::SMTP->new(
         host=>$mail_server,
@@ -772,19 +765,38 @@ sub email_key() {
         sasl_password=>$mail_password,
     );
 
+    open(my $handle, '-|', "gpg $default_gpg_options --armor --export '$key_id'")
+        or die "failed to open GPG process\n";
+
+    my $email = Email::MIME->create(
+        header_str => [
+            To      => $mail_recipient,
+            From    => $mail_username . '@' . $mail_server,
+            Subject => "PGP key from frith",
+        ],
+        parts => [
+            q[See attached],
+            Email::MIME->create(
+                attributes => {
+                    filename     => "${key_id}.asc",
+                    content_type => "application/octet-stream",
+                    name         => "${key_id}.asc",
+                },
+                body => do { local $/; <$handle>},
+            )
+        ],
+    );
+
     try {
-        Email::Stuffer->to($mail_recipient)
-            ->from($mail_username . '@' . $mail_server)
-            ->subject("PGP key from frith")
-            ->text_body("See attached")
-            ->attach_file($tempname)
-            ->transport($transport)
-            ->send;
+        Email::Sender::Simple->send(
+            $email,
+            { transport=>$transport }
+        );
+
     } catch {
         print $_->message . "\n";
     };
-    unlink $tempname unless $CMD_OPTIONS{'debug'};
-    rmdir $tempdir unless $CMD_OPTIONS{'debug'};
+    close($handle);
 }
 
 sub download_key() {
