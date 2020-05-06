@@ -1,3 +1,9 @@
+frith (0.1.0~beta5) andrewg-test; urgency=medium
+
+  * Fixed temporary file bug, list all keys in advanced edit
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Wed, 06 May 2020 20:05:52 +0100
+
 frith (0.1.0~beta4) andrewg-test; urgency=medium
 
   * Implemented save to file, better error handling
