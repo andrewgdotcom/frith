@@ -1,3 +1,9 @@
+frith (0.1.0~beta6) andrewg-test; urgency=medium
+
+  * Abandon Email::Stuffer
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Wed, 06 May 2020 21:12:59 +0100
+
 frith (0.1.0~beta5) andrewg-test; urgency=medium
 
   * Fixed temporary file bug, list all keys in advanced edit
