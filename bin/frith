@@ -141,13 +141,13 @@ sub get_date {
 sub debug {
     return 0 unless $CMD_OPTIONS{'debug'};
     my $message = shift;
-    print "DEBUG: $message\n";
+    print STDERR "DEBUG: $message\n";
 }
 
 sub debugpipe {
     return 0 unless $CMD_OPTIONS{'debugpipe'};
     my $message = shift;
-    print "DEBUGPIPE: $message";
+    print STDERR "DEBUGPIPE: $message";
 }
 
 
@@ -192,7 +192,7 @@ sub first_time {
 		$num_keys ++ if(/^sec:/);
 	}
 	close($pipe);
-	print "Primary keys found: $num_keys\n";
+	&notify("Primary keys found: $num_keys");
 	return ! $num_keys;
 }
 
@@ -334,7 +334,7 @@ my @CH_publish = (
 my @CH_subkeys = (
 	$LA_subkeys_to_smartcard,
 	$LA_subkeys_to_file,
-	$LA_ssh_auth_to_file,
+#	$LA_ssh_auth_to_file, # this has been broken since gpg 2.1 https://dev.gnupg.org/T1753
 );
 my @CH_smartcard = (
 	$LA_subkeys_to_smartcard,
@@ -668,6 +668,12 @@ sub ask_with_default() {
 	return $input;
 }
 
+# Don't use print below here; this allows us to swap in a GUI routine later.
+
+sub notify() {
+    print shift . "\n";
+}
+
 
 ##############################################################
 ####################### GPG harnesses ########################
@@ -707,7 +713,7 @@ sub publish() {
     my $key_id = shift;
     debug qq[publishing key $key_id];
     if($CMD_OPTIONS{'nopublish'}) {
-        print qq[NOPUBLISH: no data will be published, skipping\n];
+        &notify(qq[NOPUBLISH: no data will be published, skipping]);
     } else {
         system('gpg', '--send-keys', $key_id);
     }
@@ -722,7 +728,7 @@ sub publish_wks() {
     my $mail_password = shift;
     debug qq[publishing key $key_id to WKS];
     if($CMD_OPTIONS{'nopublish'}) {
-    	print qq[NOPUBLISH: no data will be published, skipping\n];
+        &notify(qq[NOPUBLISH: no data will be published, skipping]);
         return 0;
     }
 
@@ -743,7 +749,7 @@ sub publish_wks() {
             { transport=>$transport }
         );
     } catch {
-        print $_->message . "\n";
+        &notify($_->message);
     };
     close($handle);
 }
@@ -794,7 +800,7 @@ sub email_key() {
         );
 
     } catch {
-        print $_->message . "\n";
+        &notify($_->message);
     };
     close($handle);
 }
@@ -1100,7 +1106,8 @@ sub revoke_key() {
 	my $dialog = $options{'dialog'};
 	$dialog = '' unless $dialog;
 
-	print qq[ gpg $default_gpg_options --gen-revoke $key_id ??\n\n];
+    # TODO: use gen-revoke here instead? #51
+	# gpg $default_gpg_options --gen-revoke $key_id ??
 
 	# GPG transcript
 	# key (deselect all subkeys)
@@ -1198,7 +1205,7 @@ sub change_pass() {
 	my $old_passphrase = shift;
 	my $new_passphrase = shift;
 
-	print qq[\nChanging the passphrase for $key_id\n\n];
+	&notify(qq[\nChanging the passphrase for $key_id]);
 
 	# GPG transcript
 	# passwd
@@ -1233,9 +1240,10 @@ sub sc_subkey_write() {
 	# unfortunately this means the user is prompted for the key passphrase
 	# AND the admin pin many times, as we cannot pipe them on stdin
 
-	print qq[You will be prompted several times for the key passphrase and the card
-admin PIN. This is a limitation of gpg. Sorry.
-];
+	&notify(qq[
+You will be prompted several times for the key passphrase and the card
+admin PIN. This is a limitation of gpg.
+]);
 
 	open(my $gpg_input, '|-', "gpg $default_gpg_options --batch --yes --command-fd 0 --edit-key $key_id")
 		or die "failed to create gpg process\n";
@@ -1479,11 +1487,12 @@ sub find_public_key() {
 	if($key_id =~ /^([a-fA-F0-9]{16}|[a-fA-F0-9]{40})$/) {
 		$success = &download_key($key_id);
 	} else {
-		print qq[That was not a valid LONG key ID or fingerprint\n];
+		&notify(qq[That was not a valid LONG key ID or fingerprint]);
 	}
 	return $success;
 }
 
+# TODO: factor out `print` here, use more generic display code #52
 sub list_subkeys {
 	my $key_id = shift;
 	print "\nSubkeys of $key_id: \n\n";
@@ -1509,15 +1518,14 @@ sub list_subkeys {
 ############### Backups
 
 sub SR_clone_to_tails() {
-	print qq[
+	&notify(qq[
 Please insert a Tails USB disk.
 
 If you do not have one, clone this image to a blank USB now:
 Applications -> Tails -> Tails Installer -> Install by Cloning
 
 ...and come back to this window when finished.
-
-];
+]);
 
 	&user_input('Hit return to continue: ');
 	system('tails-clone-persistent');
@@ -1530,7 +1538,7 @@ sub SR_backup_to_file() {
 	my $location = &ask_with_default($location_prompt, $default_backup_dir);
 	return 1 unless $location;
 	while(! -d $location) {
-		print qq[That directory does not exist\n\n];
+		&notify(qq[That directory does not exist]);
 		my $location = &ask_with_default($location_prompt, $default_backup_dir);
 		return 1 unless $location;
 	}
@@ -1542,10 +1550,10 @@ sub SR_backup_to_file() {
 	chdir($gpg_location);
 	system('tar', 'cvf', catfile($location, $filename),
 		'--exclude', 'random_seed', '.'); # don't share randomness
-	print qq[
+	&notify(qq[
 Be sure to copy $location/$filename somewhere safe and private. This
 file is only protected with your passphrase. Hope you made a good one!
-];
+]);
 }
 $actionmap{$LA_backup_to_file} = \&SR_backup_to_file;
 
@@ -1557,14 +1565,14 @@ sub SR_restore_from_file() {
 	my $location = &ask_with_default($location_prompt, $default_backup_dir);
 	return 1 unless $location;
 	while(! -d $location) {
-		print qq[That directory does not exist\n\n];
+		&notify(qq[That directory does not exist]);
 		my $location = &ask_with_default($location_prompt, $default_backup_dir);
 		return 1 unless $location;
 	}
 	my $filename = &ask_with_default('Filename', $default_backup_file);
 	return 1 unless $filename;
 	while(! -f catfile($location, $filename)) {
-		print qq[That file does not exist\n\n];
+		&notify(qq[That file does not exist]);
 		my $filename = &ask_with_default($location_prompt, $default_backup_file);
 		return 1 unless $filename;
 	}
@@ -1603,18 +1611,17 @@ sub SR_ssh_auth_to_file() {
 	$key_id = &select_key('to write to file') unless $key_id;
 	return 1 unless $key_id;
 
-	my $subkey_id = &get_subkey_id($key_id, 'A');
+	my $subkey_id = &get_subkey_id($key_id, 'a');
 	debug "Subkey id $subkey_id";
 	unless($subkey_id) {
-		print "No valid auth subkey found on key $key_id\n";
+		&notify("No valid auth subkey found on key $key_id");
 		return 2;
 	}
 
-	print qq[
+	&notify(qq[
 Export an ssh private key from the given auth subkey. This is only
 necessary if you do not have monkeysphere configured on your client.
-
-];
+]);
 	return unless &make_yes("export your SSH private key to potentially insecure media");
 
 	### This is ugly as sin. We should use a decent file selector library.
@@ -1626,7 +1633,7 @@ necessary if you do not have monkeysphere configured on your client.
 			make_path($location);
 			chmod 0700, $location;
 		} else {
-			print qq[Cancelling operation...\n\n];
+			&notify(qq[Cancelling operation...]);
 			return 4;
 		}
 	}
@@ -1675,13 +1682,13 @@ necessary if you do not have monkeysphere configured on your client.
 	$redirect = '>/dev/null 2>&1' unless $CMD_OPTIONS{'debug'};
 	my $error = system("ssh-keygen -p -P '' -N $passphrase -f $path $redirect");
 	if($error != 0) {
-		print qq[Failure exporting private key, cleaning up...\n];
+		&notify(qq[Failure exporting private key, cleaning up...]);
 		unlink($path);
 	} else {
-		print qq[Exported private key to $path\n];
+		&notify(qq[Exported SSH private key to $path]);
 		# now export the public key
 		system("gpg --export $key_id | openpgp2ssh $subkey_id > $pathpub");
-		print qq[Exported public key to $pathpub\n\nDone.\n];
+		&notify(qq[Exported SSH public key to $pathpub]);
 	}
 }
 $actionmap{$LA_ssh_auth_to_file} = \&SR_ssh_auth_to_file;
@@ -1692,7 +1699,7 @@ sub SR_subkeys_to_file() {
 	$key_id = &select_key('to write to file') unless $key_id;
 	return 1 unless $key_id;
 
-	print qq[
+	&notify(qq[
 Private subkeys can be used to perform everyday PGP actions such as
 decryption, signing and authentication. The only forbidden actions are:
 	a) certifying other people's keys
@@ -1706,8 +1713,7 @@ protecting your keys is your passphrase. You did set a strong one? ;-)
 
 A more secure alternative is a PGP smartcard. See:
 	https://en.wikipedia.org/wiki/OpenPGP_card
-
-];
+]);
 	return unless &make_yes("export your private subkeys to potentially insecure media");
 
 	### This is ugly as sin. We should use a decent file selector library.
@@ -1715,7 +1721,7 @@ A more secure alternative is a PGP smartcard. See:
 	my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
 	return 1 unless $location;
 	while(! -d $location) {
-		print qq[That directory does not exist\n\n];
+		&notify(qq[That directory does not exist]);
 		my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
 		return 1 unless $location;
 	}
@@ -1738,15 +1744,16 @@ $actionmap{$LA_subkeys_to_file} = \&SR_subkeys_to_file;
 
 sub mod_hook() {
 	my $key_id = shift;
-	print qq[<<< SECRET KEY MODIFIED >>>
-
-YOU SHOULD MAKE A NEW BACKUP NOW\n\n];
+	&notify(qq[
+<<< SECRET KEY MODIFIED >>>
+YOU SHOULD MAKE A NEW BACKUP NOW
+]);
 	if($using_tails) {
 		&SR_clone_to_tails;
 	} else {
 		&SR_backup_to_file;
 	}
-	print qq[YOU SHOULD RE-EXPORT YOUR PRIVATE SUBKEYS NOW\n\n];
+	&notify(qq[YOU SHOULD RE-EXPORT YOUR PRIVATE SUBKEYS NOW]);
 	&SR_subkeys_to_smartcard($key_id);
 	&SR_subkeys_to_file($key_id);
 }
@@ -1828,7 +1835,7 @@ sub SR_decert_manual() {
             &publish($key_id);
 		}
 	} else {
-		print qq[Key not found\n\n];
+		&notify(qq[Key not found]);
 	}
 }
 $actionmap{$LA_decert_manual} = \&SR_decert_manual;
@@ -1838,7 +1845,6 @@ $actionmap{$LA_decert_manual} = \&SR_decert_manual;
 
 
 sub SR_usedefaults() {
-	print qq[PERSONAL DETAILS\n\n];
 	my $name = &ask_name;
 	my $email = &ask_email;
     unless($email) {
@@ -1851,12 +1857,11 @@ sub SR_usedefaults() {
 		return 0 unless &make_confirm("create an additional primary key on a non-empty keyring");
 	}
 
-	print qq[
+	&notify(qq[
 Name: $name
 Email: $email
 Expiry date: $expiry
-
-];
+]);
 
 	return 0 unless &make_yes('create a new primary key with the above details');
 	my $key_id = &new_primarykey($name, $email, {'expiry'=>$expiry, 'passphrase'=>$passphrase});
@@ -1874,7 +1879,7 @@ Expiry date: $expiry
 $actionmap{$LA_usedefaults} = \&SR_usedefaults;
 
 sub SR_gen_advanced() {
-	print("Type 'help' for help, ctrl-c to return to menu\n");
+	&notify("Type 'help' for help, ctrl-c to return to menu");
 	system('gpg', '--gen-key', '--with-fingerprint', '--expert');
 }
 $actionmap{$LA_gen_advanced} = \&SR_gen_advanced;
@@ -1925,6 +1930,7 @@ sub SR_publish_to_wks() {
         foreach my $email_id (@$email_ids) {
             &publish_wks($key_id, $email_id, $mail_server, $mail_username, $mail_password);
         }
+        &notify(qq[Key submitted. Please check your email inbox(es) for further instructions]);
     }
 }
 $actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
@@ -1958,7 +1964,7 @@ sub SR_save_to_file() {
     my $key_id = &select_key('to export');
     my $output_file = catfile(home(), "${key_id}.asc");
     &export_key($key_id, $output_file);
-    print qq[Key written to $output_file\n];
+    &notify(qq[Key written to $output_file]);
 }
 $actionmap{$LA_save_to_file} = \&SR_save_to_file;
 
@@ -1983,11 +1989,11 @@ sub SR_sc_factory_reset() {
 	}
 	&sc_factory_reset;
 
-	print qq[\nPlease remove the card and reinsert...];
+	&notify(qq[Please remove the card and reinsert...]);
 	# Sometimes this goes a little screwy.
 	while(&detect_smartcard) {}
 	while(! &detect_smartcard) {}
-	print "OK\n";
+	&notify("OK");
 }
 $actionmap{$LA_sc_factory_reset} = \&SR_sc_factory_reset;
 
@@ -2031,9 +2037,9 @@ sub SR_subkeys_to_smartcard() {
 	$key_id = &select_key('to write to smartcard') unless $key_id;
 
 	# Now get the indexes (NOT IDs!) of each valid subkey
-	my $subkey_s = &get_subkey_id($key_id, 'S', {'by_index' => 1});
-	my $subkey_e = &get_subkey_id($key_id, 'E', {'by_index' => 1});
-	my $subkey_a = &get_subkey_id($key_id, 'A', {'by_index' => 1});
+	my $subkey_s = &get_subkey_id($key_id, 's', {'by_index' => 1});
+	my $subkey_e = &get_subkey_id($key_id, 'e', {'by_index' => 1});
+	my $subkey_a = &get_subkey_id($key_id, 'a', {'by_index' => 1});
 
 # These aren't needed, because gpg2 wants to do its own thing
 #	my $admin = &secure_input("Smartcard admin pin: ");
@@ -2083,7 +2089,7 @@ sub SR_smartcard_advanced() {
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
 	}
-	print("Type 'help' for help, 'quit' to return to menu\n");
+	&notify("Type 'help' for help, 'quit' to return to menu");
 	system('gpg', '--card-edit', '--with-fingerprint', '--expert');
 }
 $actionmap{$LA_smartcard_advanced} = \&SR_smartcard_advanced;
@@ -2096,10 +2102,11 @@ sub SR_key_passphrase() {
 	my $key_id = &select_key('to change passphrase for');
 	return 0 unless $key_id;
 	my $old_passphrase = &secure_input('Old passphrase: ');
-	print qq[We really should test the old passphrase before continuing\n\n];
+	# TODO: We really should test the old passphrase before continuing...!
 	my $new_passphrase = &ask_passphrase;
 	&change_pass($key_id, $old_passphrase, $new_passphrase);
-	&mod_hook($key_id); # Need method to force no smartcard update!
+	&mod_hook($key_id);
+    # TODO: Need method to force no smartcard update!
 }
 $actionmap{$LA_key_passphrase} = \&SR_key_passphrase;
 
@@ -2136,8 +2143,10 @@ sub SR_revoke_uid() {
 			}
 		}
 	} else {
-		print qq[Cannot revoke the last UID on $key_id
-You must create a new UID first\n\n];
+		&notify(qq[
+Cannot revoke the last UID on $key_id
+You must create a new UID first
+]);
 	}
 }
 $actionmap{$LA_revoke_uid} = \&SR_revoke_uid;
@@ -2196,7 +2205,7 @@ $actionmap{$LA_expire_subkey} = \&SR_expire_subkey;
 sub SR_key_advanced() {
 	my $key_id = &select_key('to edit', 'include_all');
 	return 0 unless $key_id;
-	print("Type 'help' for help, 'quit' to return to menu\n");
+	&notify("Type 'help' for help, 'quit' to return to menu");
 	system('gpg', '--edit-key', '--with-fingerprint', '--expert', $key_id);
 }
 $actionmap{$LA_key_advanced} = \&SR_key_advanced;
@@ -2227,7 +2236,7 @@ sub SR_revoke_subkey() {
 
 	die qq[ERROR revoking subkey $subkey_id on $key_id - panic!\n]
 		unless &revoke_subkey($key_id, $subkey_id, $passphrase);
-	print qq[REVOKED SUBKEY ${subkey_id}\n\n];
+	&notify(qq[REVOKED SUBKEY ${subkey_id}]);
 
 	my $usage = $subkey->{'usage'};
 	if(&make_yes(qq[generate a replacement $usage subkey on $key_id])) {
@@ -2249,12 +2258,12 @@ sub SR_revoke_primary() {
 
 	die qq[ERROR revoking key $key_id - panic!\n]
 		unless &revoke_key($key_id, $passphrase);
-	print qq[REVOKED KEY ${key_id}\n\n];
+	&notify(qq[REVOKED KEY ${key_id}]);
 
 	if(&make_confirm(qq[PERMANENTLY publish the revocation of $key_id?])) {
 		&publish($key_id);
 	} else {
-		print qq[IN ORDER TO CONTINUE USING THIS KEY YOU MUST RESTORE FROM BACKUP\n\n];
+		&notify(qq[IN ORDER TO CONTINUE USING THIS KEY YOU MUST RESTORE FROM BACKUP]);
 		&SR_restore_from_file;
 	}
 }
@@ -2275,7 +2284,7 @@ $actionmap{$LA_getting_started} = \&SR_getting_started;
 
 sub SR_manual() {
 	system ('clear');
-	print qq[
+	&notify(qq[
 ${program} is a utility to simplify the best practice use of GnuPG
 encryption keys. It is intended to be used OFFLINE with the aid of a
 Tails bootable flash drive (https://tails.boum.org). You can still use
@@ -2295,10 +2304,10 @@ all operations are performed using the batch interfaces of other
 programs, such as gnupg, monkeysphere and openssh-client. There is
 currently some noise emitted from gnupg's batch interface when carrying
 out certain operations - this is expected, if ugly. I'm working on it...
-];
+]);
 	return unless &make_pause();
 	system('clear');
-	print qq[
+	&notify(qq[
 ${program} manages your GnuPG private keys by offering the following
 services:
 
@@ -2319,10 +2328,10 @@ If you do not have a PGP smartcard, or if your device/software does not
 support smartcard use, private subkeys can be exported in encrypted form
 and saved to a removable drive. This is obviously less secure, and
 should only be done if absolutely necessary.
-];
+]);
 	return unless &make_pause();
 	system('clear');
-	print qq[
+	&notify(qq[
 Exporting your primary private key is NOT supported. This key is used
 to confirm your identity and the validity of your subkeys. Unlike your
 subkeys, it cannot be easily revoked or replaced in case of compromise,
@@ -2338,10 +2347,10 @@ This is because each of these operations requires a fresh signature to
 be created by the primary private key. If you wish to run ${program}
 on a non-Tails environment this restriction does not apply, BUT you lose
 the extra security of keeping your primary private key stored offline.
-];
+]);
 	return unless &make_pause();
 	system('clear');
-	print qq[
+	&notify(qq[
 For most users, the Getting Started Wizard should be sufficient to get
 you up and running, so long as you have the following to hand:
 
@@ -2357,14 +2366,13 @@ backup should be stored in a safe remote location (such as a relative's
 house) and is equivalent to the original. You only need to make a fresh
 backup after creating new keys or subkeys - everything else can be
 generated again from the info in the public key.
-];
+]);
 	return unless &make_pause();
 	system('clear');
-	print qq[
+	&notify(qq[
 For further information, check the project homepage at
 https://andrewg.com/frith.html
-
-];
+]);
 }
 $actionmap{$LA_manual} = \&SR_manual;
 
@@ -2377,7 +2385,7 @@ sub main() {
 	&parse_options;
 
 	system ('clear') unless $CMD_OPTIONS{'debug'};
-	print "This is ${program} v${version}\n\n";
+	&notify("This is ${program} v${version}");
 
 	if($CMD_OPTIONS{'help'}) {
 		&option_help;
@@ -2385,31 +2393,33 @@ sub main() {
 	}
 
 	if($CMD_OPTIONS{'nopublish'}) {
-		print "NOPUBLISH: keys will not be published\n\n";
+		&notify("NOPUBLISH: keys will not be published");
 	}
 
 	&tails_test;
 	if($using_tails) {
-		print "Tails detected\n\n";
+		&notify("Tails detected");
 		if(! $using_tails_persistence) {
-			print "${program} on tails requires persistence\n\n";
+			&notify("${program} on tails requires persistence");
 			# create or mount persistent volume
 			&tails_test;
 		}
 		if(! $using_tails_persistence_gpg) {
-			print "${program} on tails requires persistent GPG\n\n";
+			&notify("${program} on tails requires persistent GPG");
 			# configure for gpg
 			$using_tails_persistence_gpg = 1;
 		}
 	} else {
-		print qq[${program} is intended to be run from inside a tails live system. While
+		&notify(qq[
+${program} is intended to be run from inside a tails live system. While
 it will work on any computer, you will not benefit from all the security
-features it provides, such as offline storage of your primary key.\n\n];
+features it provides, such as offline storage of your primary key.
+]);
 		exit unless &make_warned;
 	}
 
 	if(&first_time()){
-		print qq[This appears to be the first time you have run ${program}.\n\n];
+		&notify(qq[This appears to be the first time you have run ${program}]);
 		&SR_getting_started;
 	} else {
 		if(&make_yes('refresh your public key(s) from the keyservers')) {
@@ -2422,7 +2432,7 @@ features it provides, such as offline storage of your primary key.\n\n];
 	# top level menu
 	for (;;) {
 		system ('clear') unless $CMD_OPTIONS{'debug'};
-		print "This is ${program} v${version}\n\n";
+		&notify("This is ${program} v${version}");
 		&list_secret_keys;
 
 		my $response = $menu->choose(
