@@ -1,3 +1,9 @@
+frith (0.1.0~beta7) andrewg-test; urgency=medium
+
+  * Disable broken SSH key export; standardise notifications; fix subkey usage bug
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Thu, 14 May 2020 16:44:36 +0100
+
 frith (0.1.0~beta6) andrewg-test; urgency=medium
 
   * Abandon Email::Stuffer
