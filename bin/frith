@@ -267,7 +267,6 @@ my $LA_publish_to_wks = 'Publish your key to your Web Key Directory';
 my $LA_send_by_email = 'Send your key by email';
 my $LA_save_to_file = 'Save your key to a file';
 
-my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
 my $LA_subkeys_to_file = 'Export private subkeys to file';
 my $LA_subkeys_to_smartcard = 'Export private subkeys to smartcard';
 
@@ -334,7 +333,6 @@ my @CH_publish = (
 my @CH_subkeys = (
 	$LA_subkeys_to_smartcard,
 	$LA_subkeys_to_file,
-#	$LA_ssh_auth_to_file, # this has been broken since gpg 2.1 https://dev.gnupg.org/T1753
 );
 my @CH_smartcard = (
 	$LA_subkeys_to_smartcard,
@@ -1602,96 +1600,6 @@ $actionmap{$LA_restore_from_file} = \&SR_restore_from_file;
 
 
 ############### Private subkeys
-
-
-sub SR_ssh_auth_to_file() {
-	my $redirect = '';
-
-	my $key_id = shift;
-	$key_id = &select_key('to write to file') unless $key_id;
-	return 1 unless $key_id;
-
-	my $subkey_id = &get_subkey_id($key_id, 'a');
-	debug "Subkey id $subkey_id";
-	unless($subkey_id) {
-		&notify("No valid auth subkey found on key $key_id");
-		return 2;
-	}
-
-	&notify(qq[
-Export an ssh private key from the given auth subkey. This is only
-necessary if you do not have monkeysphere configured on your client.
-]);
-	return unless &make_yes("export your SSH private key to potentially insecure media");
-
-	### This is ugly as sin. We should use a decent file selector library.
-	my $location_prompt = 'SSH private key file location';
-	my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
-	return 3 unless $location;
-	if(! -d $location) {
-		if(&make_yes(qq[create the directory $location])) {
-			make_path($location);
-			chmod 0700, $location;
-		} else {
-			&notify(qq[Cancelling operation...]);
-			return 4;
-		}
-	}
-
-	my $filename = "$key_id$default_ssh_key_suffix";
-	my $filenamepub = "$key_id$default_ssh_pubkey_suffix";
-	return 5 unless $filename and $filenamepub;
-
-	my $path = catfile($location, $filename);
-	my $pathpub = catfile($location, $filenamepub);
-	return unless &make_yes("export your SSH private key to $path");
-
-	my $passphrase = &secure_input("Key passphrase: ");
-
-	# touch and set permissions on private key file FIRST
-	open(my $pgp2ssh_output, ">", "$path");
-	close $pgp2ssh_output;
-	chmod 0600, $path;
-
-	# export the private key (TODO: #42)
-	# THIS IS BAD, as we (briefly) store the unencrypted key on disk
-	# unfortunately ssh-keygen only edits key files in place #facepalm
-
-	# TODO: error handling!!!! #43
-
-	# we need to supply the passphrase to gpg via STDIN
-	# tried chaining a pair of open2()s, but it all went pete tong
-	# why do I always end up farming out pipe constructions to bash? :-(
-
-	$redirect = '2>/dev/null' unless $CMD_OPTIONS{'debug'};
-	my $gpg_pid = open(my $gpg_input, '|-', "bash -c 'gpg $default_gpg_options --export-options export-reset-subkey-passwd,export-minimal,no-export-attributes --export-secret-subkeys --no-armor $key_id | openpgp2ssh $subkey_id > $path' $redirect")
-        or die "failed to create gpg process\n";
-
-	print $gpg_input $passphrase;
-	close $gpg_input;
-	waitpid $gpg_pid, 0;
-
-	# put the password back on the SSH key
-#	open(my $ssh_keygen, '|-', "ssh-keygen -p -f $path")
-#       or die "failed to create gpg process\n";
-#	print $ssh_keygen "$passphrase\n$passphrase\n";
-#	close $ssh_keygen;
-	# bugger that, it won't even take a passphrase on STDIN
-	# leak leak leak leak leak leak leak leak leak leak leak leak
-	# ssh-keygen really isn't fit for purpose here
-	$redirect = '>/dev/null 2>&1' unless $CMD_OPTIONS{'debug'};
-	my $error = system("ssh-keygen -p -P '' -N $passphrase -f $path $redirect");
-	if($error != 0) {
-		&notify(qq[Failure exporting private key, cleaning up...]);
-		unlink($path);
-	} else {
-		&notify(qq[Exported SSH private key to $path]);
-		# now export the public key
-		system("gpg --export $key_id | openpgp2ssh $subkey_id > $pathpub");
-		&notify(qq[Exported SSH public key to $pathpub]);
-	}
-}
-$actionmap{$LA_ssh_auth_to_file} = \&SR_ssh_auth_to_file;
 
 
 sub SR_subkeys_to_file() {
