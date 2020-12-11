@@ -29,6 +29,7 @@ use Email::Sender::Simple;      # ditto
 use Email::MIME;                # libemail-mime-perl
 use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
+use Expect;                     # libexpect-perl
 
 # cpan libs (we'll have to package these ourselves)
 # the rpm/alien version of Term::Choose is installed in a stupid place
@@ -267,7 +268,6 @@ my $LA_publish_to_wks = 'Publish your key to your Web Key Directory';
 my $LA_send_by_email = 'Send your key by email';
 my $LA_save_to_file = 'Save your key to a file';
 
-my $LA_ssh_auth_to_file = 'Export SSH auth key to file';
 my $LA_subkeys_to_file = 'Export private subkeys to file';
 my $LA_subkeys_to_smartcard = 'Export private subkeys to smartcard';
 
@@ -334,7 +334,6 @@ my @CH_publish = (
 my @CH_subkeys = (
 	$LA_subkeys_to_smartcard,
 	$LA_subkeys_to_file,
-#	$LA_ssh_auth_to_file, # this has been broken since gpg 2.1 https://dev.gnupg.org/T1753
 );
 my @CH_smartcard = (
 	$LA_subkeys_to_smartcard,
@@ -1229,67 +1228,73 @@ sub sc_subkey_write() {
 	my $options = shift; # hash REF use ->{}
 
 	# use an options hash because otherwise confusion will be inevitable
-	my $subkey_s = $options->{'s'};
-	my $subkey_e = $options->{'e'};
-	my $subkey_a = $options->{'a'};
-#	my $passphrase = $options->{'passphrase'};
-#	my $admin = $options->{'admin'};
+    my @subkey;
+	# signing key is always in card slot 1, encrypt=2, auth=3
+	$subkey[1] = $options->{'s'};
+	$subkey[2] = $options->{'e'};
+	$subkey[3] = $options->{'a'};
 
-	# this is the only time that we MUST use gpg2, because gpg v1 does
-	# not support 4096 bit keys on smartcards
-	# unfortunately this means the user is prompted for the key passphrase
-	# AND the admin pin many times, as we cannot pipe them on stdin
+    # Which passphrase gpg expects is not indicated in the prompt.
+    # We therefore track it in a state machine *scream*
+    my $passphrase=$options->{'passphrase'};
 
-	&notify(qq[
-You will be prompted several times for the key passphrase and the card
-admin PIN. This is a limitation of gpg.
-]);
+    my @command_queue=("key\n", "key $subkey[1]\n", "keytocard\n", "1\n",
+        "key\n", "key $subkey[2]\n", "keytocard\n", "2\n",
+        "key\n", "key $subkey[3]\n", "keytocard\n", "3\n",
+        "quit\n"
+    );
+    my $command_index=0;
+    my $expect_timeout=30;
 
-	open(my $gpg_input, '|-', "gpg $default_gpg_options --batch --yes --command-fd 0 --edit-key $key_id")
-		or die "failed to create gpg process\n";
+	# the "factory" is just a standard expect object
+	my $exp_factory = new Expect;
+	# set default behaviours on the factory before spawning
+	$exp_factory->raw_pty(1);
+	# fork a new expect from the factory
+	my $exp = $exp_factory->spawn("gpg $default_gpg_options --batch --yes --command-fd 0 --edit-key $key_id");
+	die "failed to create gpg process\n" unless $exp;
 
-	#toggle (show secret keys)
-	#key (clear all selections)
-	#key $subkey_s (select signing key)
-	#keytocard (move to card)
-	#1 (signing key is always in position 1, encrypt=2, auth=3)
-	# (sometimes it might ask for confirm - newline is a safe response)
-	#key (rinse and repeat)
-	#key $subkey_e
-	#keytocard
-	#2
-	#
-	#key
-	#key $subkey_a
-	#keytocard
-	#3
-	#
-	#q (quit)
-	#n (don't save changes, i.e. don't delete moved subkeys from disk)
+	$exp->expect($expect_timeout,
 
-	# https://lists.gnupg.org/pipermail/gnupg-users/2011-August/042750.html
+        # Fatal errors
+        [
+        'Cannot exec', sub{
+            die "failed to create gpg process\n";
+        }], [
+        '^(gpg: invalid|usage:)', sub{
+            die "syntax error calling gpg\n";
+        }],
 
-	print $gpg_input qq[toggle
-key
-key $subkey_s
-keytocard
-1
+        [
+        'GET_BOOL (keyedit\.keytocard\.use_primary|cardedit\.genkeys\.replace_key)', sub{
+            my $self=shift;
+            # fill your boots
+            $self->send("y\n");
+            exp_continue;
+        }], [
+        'GET_BOOL keyedit\.save\.okay', sub{
+            my $self=shift;
+            # saving is never okay
+            $self->send("n\n");
+            exp_continue;
+        }], [
+        'GET_LINE (keyedit\.prompt|cardedit\.genkeys\.storekeytype)', sub{
+            my $self=shift;
+            $self->send($command_queue[$command_index++]);
+            # State machine: next passphrase prompt wants the key passphrase
+            $passphrase=$options->{'passphrase'};
+            exp_continue;
+        }], [
+        'GET_HIDDEN passphrase\.enter', sub{
+            my $self=shift;
+            $self->send($passphrase);
+            # State machine: next passphrase prompt wants the admin pin
+            $passphrase=$options->{'admin_pin'};
+            exp_continue;
+        }],
 
-key
-key $subkey_e
-keytocard
-2
+	);
 
-key
-key $subkey_a
-keytocard
-3
-
-q
-n
-];
-
-	close $gpg_input;
 }
 
 sub sc_factory_reset() {
@@ -1602,96 +1607,6 @@ $actionmap{$LA_restore_from_file} = \&SR_restore_from_file;
 
 
 ############### Private subkeys
-
-
-sub SR_ssh_auth_to_file() {
-	my $redirect = '';
-
-	my $key_id = shift;
-	$key_id = &select_key('to write to file') unless $key_id;
-	return 1 unless $key_id;
-
-	my $subkey_id = &get_subkey_id($key_id, 'a');
-	debug "Subkey id $subkey_id";
-	unless($subkey_id) {
-		&notify("No valid auth subkey found on key $key_id");
-		return 2;
-	}
-
-	&notify(qq[
-Export an ssh private key from the given auth subkey. This is only
-necessary if you do not have monkeysphere configured on your client.
-]);
-	return unless &make_yes("export your SSH private key to potentially insecure media");
-
-	### This is ugly as sin. We should use a decent file selector library.
-	my $location_prompt = 'SSH private key file location';
-	my $location = &ask_with_default($location_prompt, $default_subkeys_dir);
-	return 3 unless $location;
-	if(! -d $location) {
-		if(&make_yes(qq[create the directory $location])) {
-			make_path($location);
-			chmod 0700, $location;
-		} else {
-			&notify(qq[Cancelling operation...]);
-			return 4;
-		}
-	}
-
-	my $filename = "$key_id$default_ssh_key_suffix";
-	my $filenamepub = "$key_id$default_ssh_pubkey_suffix";
-	return 5 unless $filename and $filenamepub;
-
-	my $path = catfile($location, $filename);
-	my $pathpub = catfile($location, $filenamepub);
-	return unless &make_yes("export your SSH private key to $path");
-
-	my $passphrase = &secure_input("Key passphrase: ");
-
-	# touch and set permissions on private key file FIRST
-	open(my $pgp2ssh_output, ">", "$path");
-	close $pgp2ssh_output;
-	chmod 0600, $path;
-
-	# export the private key (TODO: #42)
-	# THIS IS BAD, as we (briefly) store the unencrypted key on disk
-	# unfortunately ssh-keygen only edits key files in place #facepalm
-
-	# TODO: error handling!!!! #43
-
-	# we need to supply the passphrase to gpg via STDIN
-	# tried chaining a pair of open2()s, but it all went pete tong
-	# why do I always end up farming out pipe constructions to bash? :-(
-
-	$redirect = '2>/dev/null' unless $CMD_OPTIONS{'debug'};
-	my $gpg_pid = open(my $gpg_input, '|-', "bash -c 'gpg $default_gpg_options --export-options export-reset-subkey-passwd,export-minimal,no-export-attributes --export-secret-subkeys --no-armor $key_id | openpgp2ssh $subkey_id > $path' $redirect")
-        or die "failed to create gpg process\n";
-
-	print $gpg_input $passphrase;
-	close $gpg_input;
-	waitpid $gpg_pid, 0;
-
-	# put the password back on the SSH key
-#	open(my $ssh_keygen, '|-', "ssh-keygen -p -f $path")
-#       or die "failed to create gpg process\n";
-#	print $ssh_keygen "$passphrase\n$passphrase\n";
-#	close $ssh_keygen;
-	# bugger that, it won't even take a passphrase on STDIN
-	# leak leak leak leak leak leak leak leak leak leak leak leak
-	# ssh-keygen really isn't fit for purpose here
-	$redirect = '>/dev/null 2>&1' unless $CMD_OPTIONS{'debug'};
-	my $error = system("ssh-keygen -p -P '' -N $passphrase -f $path $redirect");
-	if($error != 0) {
-		&notify(qq[Failure exporting private key, cleaning up...]);
-		unlink($path);
-	} else {
-		&notify(qq[Exported SSH private key to $path]);
-		# now export the public key
-		system("gpg --export $key_id | openpgp2ssh $subkey_id > $pathpub");
-		&notify(qq[Exported SSH public key to $pathpub]);
-	}
-}
-$actionmap{$LA_ssh_auth_to_file} = \&SR_ssh_auth_to_file;
 
 
 sub SR_subkeys_to_file() {
@@ -2040,12 +1955,11 @@ sub SR_subkeys_to_smartcard() {
 	my $subkey_s = &get_subkey_id($key_id, 's', {'by_index' => 1});
 	my $subkey_e = &get_subkey_id($key_id, 'e', {'by_index' => 1});
 	my $subkey_a = &get_subkey_id($key_id, 'a', {'by_index' => 1});
+	my $admin = &secure_input("Smartcard admin pin: ");
+	my $passphrase = &secure_input("Key passphrase: ");
 
-# These aren't needed, because gpg2 wants to do its own thing
-#	my $admin = &secure_input("Smartcard admin pin: ");
-#	my $passphrase = &secure_input("Key passphrase: ");
-
-	&sc_subkey_write($key_id, {#'admin' => $admin, 'passphrase' => $passphrase,
+	&sc_subkey_write($key_id,
+        {'admin_pin' => $admin, 'passphrase' => $passphrase,
 		's' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
 }
 $actionmap{$LA_subkeys_to_smartcard} = \&SR_subkeys_to_smartcard;
