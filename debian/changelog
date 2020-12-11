@@ -1,3 +1,9 @@
+frith (0.1.0~beta8) andrewg-test; urgency=medium
+
+  * Use expect to handle keytocard operations
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Fri, 11 Dec 2020 16:24:28 +0000
+
 frith (0.1.0~beta7) andrewg-test; urgency=medium
 
   * Disable broken SSH key export; standardise notifications; fix subkey usage bug
