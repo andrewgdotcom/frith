@@ -29,6 +29,7 @@ use Email::Sender::Simple;      # ditto
 use Email::MIME;                # libemail-mime-perl
 use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
+use Expect;                     # libexpect-perl
 
 # cpan libs (we'll have to package these ourselves)
 # the rpm/alien version of Term::Choose is installed in a stupid place
@@ -1227,67 +1228,73 @@ sub sc_subkey_write() {
 	my $options = shift; # hash REF use ->{}
 
 	# use an options hash because otherwise confusion will be inevitable
-	my $subkey_s = $options->{'s'};
-	my $subkey_e = $options->{'e'};
-	my $subkey_a = $options->{'a'};
-#	my $passphrase = $options->{'passphrase'};
-#	my $admin = $options->{'admin'};
+    my @subkey;
+	# signing key is always in card slot 1, encrypt=2, auth=3
+	$subkey[1] = $options->{'s'};
+	$subkey[2] = $options->{'e'};
+	$subkey[3] = $options->{'a'};
 
-	# this is the only time that we MUST use gpg2, because gpg v1 does
-	# not support 4096 bit keys on smartcards
-	# unfortunately this means the user is prompted for the key passphrase
-	# AND the admin pin many times, as we cannot pipe them on stdin
+    # Which passphrase gpg expects is not indicated in the prompt.
+    # We therefore track it in a state machine *scream*
+    my $passphrase=$options->{'passphrase'};
 
-	&notify(qq[
-You will be prompted several times for the key passphrase and the card
-admin PIN. This is a limitation of gpg.
-]);
+    my @command_queue=("key\n", "key $subkey[1]\n", "keytocard\n", "1\n",
+        "key\n", "key $subkey[2]\n", "keytocard\n", "2\n",
+        "key\n", "key $subkey[3]\n", "keytocard\n", "3\n",
+        "quit\n"
+    );
+    my $command_index=0;
+    my $expect_timeout=30;
 
-	open(my $gpg_input, '|-', "gpg $default_gpg_options --batch --yes --command-fd 0 --edit-key $key_id")
-		or die "failed to create gpg process\n";
+	# the "factory" is just a standard expect object
+	my $exp_factory = new Expect;
+	# set default behaviours on the factory before spawning
+	$exp_factory->raw_pty(1);
+	# fork a new expect from the factory
+	my $exp = $exp_factory->spawn("gpg $default_gpg_options --batch --yes --command-fd 0 --edit-key $key_id");
+	die "failed to create gpg process\n" unless $exp;
 
-	#toggle (show secret keys)
-	#key (clear all selections)
-	#key $subkey_s (select signing key)
-	#keytocard (move to card)
-	#1 (signing key is always in position 1, encrypt=2, auth=3)
-	# (sometimes it might ask for confirm - newline is a safe response)
-	#key (rinse and repeat)
-	#key $subkey_e
-	#keytocard
-	#2
-	#
-	#key
-	#key $subkey_a
-	#keytocard
-	#3
-	#
-	#q (quit)
-	#n (don't save changes, i.e. don't delete moved subkeys from disk)
+	$exp->expect($expect_timeout,
 
-	# https://lists.gnupg.org/pipermail/gnupg-users/2011-August/042750.html
+        # Fatal errors
+        [
+        'Cannot exec', sub{
+            die "failed to create gpg process\n";
+        }], [
+        '^(gpg: invalid|usage:)', sub{
+            die "syntax error calling gpg\n";
+        }],
 
-	print $gpg_input qq[toggle
-key
-key $subkey_s
-keytocard
-1
+        [
+        'GET_BOOL (keyedit\.keytocard\.use_primary|cardedit\.genkeys\.replace_key)', sub{
+            my $self=shift;
+            # fill your boots
+            $self->send("y\n");
+            exp_continue;
+        }], [
+        'GET_BOOL keyedit\.save\.okay', sub{
+            my $self=shift;
+            # saving is never okay
+            $self->send("n\n");
+            exp_continue;
+        }], [
+        'GET_LINE (keyedit\.prompt|cardedit\.genkeys\.storekeytype)', sub{
+            my $self=shift;
+            $self->send($command_queue[$command_index++]);
+            # State machine: next passphrase prompt wants the key passphrase
+            $passphrase=$options->{'passphrase'};
+            exp_continue;
+        }], [
+        'GET_HIDDEN passphrase\.enter', sub{
+            my $self=shift;
+            $self->send($passphrase);
+            # State machine: next passphrase prompt wants the admin pin
+            $passphrase=$options->{'admin_pin'};
+            exp_continue;
+        }],
 
-key
-key $subkey_e
-keytocard
-2
+	);
 
-key
-key $subkey_a
-keytocard
-3
-
-q
-n
-];
-
-	close $gpg_input;
 }
 
 sub sc_factory_reset() {
@@ -1948,12 +1955,11 @@ sub SR_subkeys_to_smartcard() {
 	my $subkey_s = &get_subkey_id($key_id, 's', {'by_index' => 1});
 	my $subkey_e = &get_subkey_id($key_id, 'e', {'by_index' => 1});
 	my $subkey_a = &get_subkey_id($key_id, 'a', {'by_index' => 1});
+	my $admin = &secure_input("Smartcard admin pin: ");
+	my $passphrase = &secure_input("Key passphrase: ");
 
-# These aren't needed, because gpg2 wants to do its own thing
-#	my $admin = &secure_input("Smartcard admin pin: ");
-#	my $passphrase = &secure_input("Key passphrase: ");
-
-	&sc_subkey_write($key_id, {#'admin' => $admin, 'passphrase' => $passphrase,
+	&sc_subkey_write($key_id,
+        {'admin_pin' => $admin, 'passphrase' => $passphrase,
 		's' => $subkey_s, 'e' => $subkey_e, 'a'=> $subkey_a});
 }
 $actionmap{$LA_subkeys_to_smartcard} = \&SR_subkeys_to_smartcard;
