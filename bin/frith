@@ -1655,12 +1655,13 @@ $actionmap{$LA_subkeys_to_file} = \&SR_subkeys_to_file;
 
 # &mod_hook should be called any time the secret key is modified
 # This ensures that the user is prompted to update their backups and
-# subkeys
+# subkeys.
+# Some operations (such as changing key passphrases) don't affect smartcard
+# operation, so we provide &backup_hook for them instead.
 
 sub mod_hook() {
 	my $key_id = shift;
 	&notify(qq[
-<<< SECRET KEY MODIFIED >>>
 YOU SHOULD MAKE A NEW BACKUP NOW
 ]);
 	if($using_tails) {
@@ -1670,7 +1671,18 @@ YOU SHOULD MAKE A NEW BACKUP NOW
 	}
 	&notify(qq[YOU SHOULD RE-EXPORT YOUR PRIVATE SUBKEYS NOW]);
 	&SR_subkeys_to_smartcard($key_id);
-	&SR_subkeys_to_file($key_id);
+}
+
+sub backup_hook() {
+	my $key_id = shift;
+	&notify(qq[
+YOU SHOULD MAKE A NEW BACKUP NOW
+]);
+	if($using_tails) {
+		&SR_clone_to_tails;
+	} else {
+		&SR_backup_to_file;
+	}
 }
 
 
@@ -2019,8 +2031,8 @@ sub SR_key_passphrase() {
 	# TODO: We really should test the old passphrase before continuing...!
 	my $new_passphrase = &ask_passphrase;
 	&change_pass($key_id, $old_passphrase, $new_passphrase);
-	&mod_hook($key_id);
-    # TODO: Need method to force no smartcard update!
+    # Backup only, don't re-export unnecessarily to smartcard
+	&backup_hook($key_id);
 }
 $actionmap{$LA_key_passphrase} = \&SR_key_passphrase;
 
@@ -2109,7 +2121,6 @@ sub SR_expire_subkey() {
 	my $passphrase = &secure_input('Key passphrase: ');
 
 	&expire_subkey($key_id, $subkey_id, $expiry, $passphrase);
-	&mod_hook($key_id);
 	if(&make_yes(qq[republish key $key_id])) {
 		&publish($key_id);
 	}
