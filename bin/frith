@@ -1615,18 +1615,8 @@ sub SR_subkeys_to_file() {
 	return 1 unless $key_id;
 
 	&notify(qq[
-Private subkeys can be used to perform everyday PGP actions such as
-decryption, signing and authentication. The only forbidden actions are:
-	a) certifying other people's keys
-	b) modifying your own key
-For this you will require the primary key stored here.
-
-Private subkeys should normally be stored on a removable disk so that they
-can be imported into another computer without transferring them over a
-network. You should keep this removable disk safe because the only thing
-protecting your keys is your passphrase. You did set a strong one? ;-)
-
-A more secure alternative is a PGP smartcard. See:
+Private subkeys should only be stored on a removable disk if there is no other
+way to use them on your everyday machine. Please use a PGP smartcard instead:
 	https://en.wikipedia.org/wiki/OpenPGP_card
 ]);
 	return unless &make_yes("export your private subkeys to potentially insecure media");
