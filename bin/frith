@@ -1287,7 +1287,7 @@ sub sc_subkey_write() {
         }], [
         'GET_HIDDEN passphrase\.enter', sub{
             my $self=shift;
-            $self->send($passphrase);
+            $self->send("$passphrase\n");
             # State machine: next passphrase prompt wants the admin pin
             $passphrase=$options->{'admin_pin'};
             exp_continue;
