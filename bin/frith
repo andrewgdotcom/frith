@@ -748,7 +748,7 @@ sub publish_wks() {
             { transport=>$transport }
         );
     } catch {
-        &notify($_->message);
+        &notify(qq[Failed to publish ID "$email_id" to WKS]);
     };
     close($handle);
 }
