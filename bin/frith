@@ -740,10 +740,12 @@ sub publish_wks() {
         return 0;
     }
 
+	my $ssl_protocol='starttls';
+	$ssl_protocol='ssl' if($port == 465);
     my $transport = Email::Sender::Transport::SMTP::Persistent->new(
         host=>$mail_server,
         port=>$port,
-        ssl=>'starttls',
+        ssl=>$ssl_protocol,
         sasl_username=>$mail_username,
         sasl_password=>$mail_password,
     );
@@ -776,10 +778,12 @@ sub email_key() {
     my $mail_password = shift;
     debug qq[emailing key $key_id];
 
+	my $ssl_protocol='starttls';
+	$ssl_protocol='ssl' if($port == 465);
     my $transport = Email::Sender::Transport::SMTP->new(
         host=>$mail_server,
         port=>$port,
-        ssl=>'starttls',
+        ssl=>$ssl_protocol,
         sasl_username=>$mail_username,
         sasl_password=>$mail_password,
     );
