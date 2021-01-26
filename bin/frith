@@ -19,6 +19,14 @@ use File::Spec::Functions qw(catfile);
 use Time::Piece;
 #use IPC::Open2;
 
+# socks wrapper, default to using tor (we can disable this later)
+# note that only those modules use-d below this will be wrapped
+# we have to package this ourselves from cpan
+use IO::Socket::Socks::Wrapper { 
+	ProxyAddr => 'localhost', 
+	ProxyPort => 9050 
+};								# libio-socket-socks-wrapper-perl
+
 # extra debian libs
 use File::HomeDir qw(home);		# libfile-homedir-perl
 use DateTime;					# libdatetime-perl
@@ -31,7 +39,7 @@ use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
 use Expect;                     # libexpect-perl
 
-# cpan libs (we'll have to package these ourselves)
+# other cpan libs (we'll have to package these ourselves too)
 # the rpm/alien version of Term::Choose is installed in a stupid place
 use lib "/usr/lib/perl5/vendor_perl/5.22.0";
 use Term::Choose qw(choose); 	# cpan
@@ -2316,12 +2324,14 @@ sub main() {
 		&notify("Tails detected");
 		if(! $using_tails_persistence) {
 			&notify("${program} on tails requires persistence");
-			# create or mount persistent volume
+			# TODO: create or mount persistent volume
+			exit;
 			&tails_test;
 		}
 		if(! $using_tails_persistence_gpg) {
 			&notify("${program} on tails requires persistent GPG");
-			# configure for gpg
+			# TODO: configure for gpg
+			exit;
 			$using_tails_persistence_gpg = 1;
 		}
 	} else {
@@ -2331,6 +2341,8 @@ it will work on any computer, you will not benefit from all the security
 features it provides, such as offline storage of your primary key.
 ]);
 		exit unless &make_warned;
+		# Disable tor
+		IO::Socket::Socks::Wrapper->import(0);
 	}
 
 	if(&first_time()){
