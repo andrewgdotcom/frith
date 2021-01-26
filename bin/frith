@@ -33,6 +33,7 @@ use DateTime;					# libdatetime-perl
 use Try::Tiny;                  # libtry-tiny-perl
 use Email::Valid; 				# libemail-valid-perl
 use Email::Sender::Transport::SMTP;  #libemail-sender-perl
+use Email::Sender::Transport::SMTP::Persistent;	# ditto
 use Email::Sender::Simple;      # ditto
 use Email::MIME;                # libemail-mime-perl
 use Term::ReadKey; 				# libterm-readkey-perl
@@ -272,7 +273,7 @@ my $LA_backup_to_file = 'Back up to file';
 my $LA_restore_from_file = 'Restore from file';
 
 my $LA_publish_to_keyserver = 'Publish your key to the keyserver(s)';
-my $LA_publish_to_wks = 'Publish your key to your Web Key Directory';
+my $LA_publish_to_wks = 'Publish your key to your Web Key Service';
 my $LA_send_by_email = 'Send your key by email';
 my $LA_save_to_file = 'Save your key to a file';
 
@@ -728,7 +729,7 @@ sub publish() {
 
 sub publish_wks() {
 	my $key_id = shift;
-    my $email_id = shift;
+    my $email_ids = shift; # array ref
     my ($mail_server, $port) = split(':', shift);
     $port = 25 unless $port;
     my $mail_username = shift;
@@ -739,7 +740,7 @@ sub publish_wks() {
         return 0;
     }
 
-    my $transport = Email::Sender::Transport::SMTP->new(
+    my $transport = Email::Sender::Transport::SMTP::Persistent->new(
         host=>$mail_server,
         port=>$port,
         ssl=>'starttls',
@@ -747,18 +748,23 @@ sub publish_wks() {
         sasl_password=>$mail_password,
     );
 
-    open(my $handle, '-|', "/usr/lib/gnupg/gpg-wks-client --create '$key_id' '$email_id'")
-        or die "failed to create WKS request\n";
-
-    try {
-        Email::Sender::Simple->send(
-            do { local $/; <$handle>},
-            { transport=>$transport }
-        );
-    } catch {
-        &notify(qq[Failed to publish ID "$email_id" to WKS]);
-    };
-    close($handle);
+	foreach my $email_id (@$email_ids) {
+		if(open(my $handle, '-|', "/usr/lib/gnupg/gpg-wks-client --create '$key_id' '$email_id'")) {
+			try {
+				Email::Sender::Simple->send(
+					do { local $/; <$handle>},
+					{ transport=>$transport }
+				);
+		        &notify(qq[Key submitted. Please check your email inbox(es) for further instructions]);
+			} catch {
+				&notify(qq[Failed to publish ID "$email_id" to WKS]);
+			};
+			close($handle);
+		} else {
+			warn qq[failed to create WKS request for "$email_id"\n];
+		};
+	}
+	$transport->disconnect;
 }
 
 sub email_key() {
@@ -1852,10 +1858,7 @@ sub SR_publish_to_wks() {
         $mail_password = &secure_input('Mail server password: ');
     }
     if(&make_yes(qq[publish key $key_id to the Web Key Directory])) {
-        foreach my $email_id (@$email_ids) {
-            &publish_wks($key_id, $email_id, $mail_server, $mail_username, $mail_password);
-        }
-        &notify(qq[Key submitted. Please check your email inbox(es) for further instructions]);
+        &publish_wks($key_id, $email_ids, $mail_server, $mail_username, $mail_password);
     }
 }
 $actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
