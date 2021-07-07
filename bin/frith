@@ -468,8 +468,8 @@ sub prompt_insert_sc() {
 	my $response = $menu->choose(
 		['OK', undef],
 		{
-			prompt => "Please insert a PGP smartcard\n\n",
-			undef  => 'Continue without smartcard',
+			prompt => "Please insert an OpenPGP card\n\n",
+			undef  => 'Continue without OpenPGP card',
 			layout => 3,
 		}
 	);
@@ -480,8 +480,8 @@ sub prompt_overwrite_old_sc() {
 	my $response = $menu->choose(
 		[undef, 'Overwrite smartcard'],
 		{
-			prompt => "PGP Smartcard appears to contain user data\n\n",
-			undef  => 'Do not use smartcard',
+			prompt => "OpenPGP card appears to contain user data\n\n",
+			undef  => 'Do not use OpenPGP card',
 			layout => 3,
 		}
 	);
@@ -616,7 +616,7 @@ sub ask_email() {
 }
 
 sub ask_expiry() {
-	print qq[It is strongly recommended to set an expiry date on all PGP keys.
+	print qq[It is strongly recommended to set an expiry date on all OpenPGP keys.
 This ensures that lost keys will not remain valid forever. Expiry dates
 can be extended retrospectively.\n\n];
 	my $expiry_prompt = "Expires in (suffix d,w,m,y OR date as YYYY-MM-DD, default $default_expiry): ";
@@ -795,7 +795,7 @@ sub email_key() {
         header_str => [
             To      => $mail_recipient,
             From    => $mail_username . '@' . $mail_server,
-            Subject => "PGP key from frith",
+            Subject => "OpenPGP key from frith",
         ],
         parts => [
             q[See attached],
@@ -1581,7 +1581,7 @@ file is only protected with your passphrase. Hope you made a good one!
 $actionmap{$LA_backup_to_file} = \&SR_backup_to_file;
 
 sub SR_restore_from_file() {
-	return unless &make_confirm("restore your entire PGP config from backup");
+	return unless &make_confirm("restore your entire OpenPGP config from backup");
 
 	### This is ugly as sin. We should use a decent file selector library.
 	my $location_prompt = 'Backup file location';
@@ -1634,7 +1634,7 @@ sub SR_subkeys_to_file() {
 
 	&notify(qq[
 Private subkeys should only be stored on a removable disk if there is no other
-way to use them on your everyday machine. Please use a PGP smartcard instead:
+way to use them on your everyday machine. Please use an OpenPGP card instead:
 	https://en.wikipedia.org/wiki/OpenPGP_card
 ]);
 	return unless &make_yes("export your private subkeys to potentially insecure media");
@@ -1914,7 +1914,7 @@ sub SR_sc_status() {
 $actionmap{$LA_sc_status} = \&SR_sc_status;
 
 sub SR_sc_factory_reset() {
-	return 1 unless &make_confirm("reset your v2.x PGP smartcard to factory default (THIS WILL BRICK A v1.x CARD)");
+	return 1 unless &make_confirm("reset your v2.x OpenPGP card to factory default (THIS WILL BRICK A v1.x CARD)");
 
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
@@ -2242,19 +2242,19 @@ ${program} manages your GnuPG private keys by offering the following
 services:
 
 * Creation, expiry and revocation of keys, subkeys and IDs
-* Export of private subkeys to removable media, e.g. PGP smartcard
+* Export of private subkeys to removable media, e.g. OpenPGP card
 * Certification of other people's keys (web of trust)
 * Upload of public keys to keyservers (requires a network connection)
 * Backup and restore to/from secondary media
 
-It is strongly recommended to use a PGP smartcard for everyday use.
+It is strongly recommended to use an OpenPGP card for everyday use.
 These store private subkeys in non-retrievable storage and perform
 decryption and signing operations in a tamper-proof processor on the
 card itself. You can thereby use your subkeys as normal (with a few
 caveats, see next page) on a laptop or desktop computer without ever
 storing private key material on that computer.
 
-If you do not have a PGP smartcard, or if your device/software does not
+If you do not have an OpenPGP card, or if your device/software does not
 support smartcard use, private subkeys can be exported in encrypted form
 and saved to a removable drive. This is obviously less secure, and
 should only be done if absolutely necessary.
@@ -2288,7 +2288,7 @@ you up and running, so long as you have the following to hand:
 * Two flash drives, at least one with Tails and ${program} installed
 	(8GB recommended)
 * A removable device to store your private subkeys
-	(PGP smartcard recommended, or a third flash drive in a pinch)
+	(OpenPGP card recommended, or a third flash drive in a pinch)
 
 You will be prompted to insert the second Tails drive to create a
 backup before exporting your private subkeys to a removable device. This
