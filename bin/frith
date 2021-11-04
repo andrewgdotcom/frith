@@ -19,19 +19,28 @@ use File::Spec::Functions qw(catfile);
 use Time::Piece;
 #use IPC::Open2;
 
+# socks wrapper, default to using tor (we can disable this later)
+# note that only those modules use-d below this will be wrapped
+# we have to package this ourselves from cpan
+use IO::Socket::Socks::Wrapper { 
+	ProxyAddr => 'localhost', 
+	ProxyPort => 9050 
+};								# libio-socket-socks-wrapper-perl
+
 # extra debian libs
 use File::HomeDir qw(home);		# libfile-homedir-perl
 use DateTime;					# libdatetime-perl
 use Try::Tiny;                  # libtry-tiny-perl
 use Email::Valid; 				# libemail-valid-perl
 use Email::Sender::Transport::SMTP;  #libemail-sender-perl
+use Email::Sender::Transport::SMTP::Persistent;	# ditto
 use Email::Sender::Simple;      # ditto
 use Email::MIME;                # libemail-mime-perl
 use Term::ReadKey; 				# libterm-readkey-perl
 use Switch;                     # libswitch-perl
 use Expect;                     # libexpect-perl
 
-# cpan libs (we'll have to package these ourselves)
+# other cpan libs (we'll have to package these ourselves too)
 # the rpm/alien version of Term::Choose is installed in a stupid place
 use lib "/usr/lib/perl5/vendor_perl/5.22.0";
 use Term::Choose qw(choose); 	# cpan
@@ -264,7 +273,7 @@ my $LA_backup_to_file = 'Back up to file';
 my $LA_restore_from_file = 'Restore from file';
 
 my $LA_publish_to_keyserver = 'Publish your key to the keyserver(s)';
-my $LA_publish_to_wks = 'Publish your key to your Web Key Directory';
+my $LA_publish_to_wks = 'Publish your key to your Web Key Service';
 my $LA_send_by_email = 'Send your key by email';
 my $LA_save_to_file = 'Save your key to a file';
 
@@ -459,8 +468,8 @@ sub prompt_insert_sc() {
 	my $response = $menu->choose(
 		['OK', undef],
 		{
-			prompt => "Please insert a PGP smartcard\n\n",
-			undef  => 'Continue without smartcard',
+			prompt => "Please insert an OpenPGP card\n\n",
+			undef  => 'Continue without OpenPGP card',
 			layout => 3,
 		}
 	);
@@ -471,8 +480,8 @@ sub prompt_overwrite_old_sc() {
 	my $response = $menu->choose(
 		[undef, 'Overwrite smartcard'],
 		{
-			prompt => "PGP Smartcard appears to contain user data\n\n",
-			undef  => 'Do not use smartcard',
+			prompt => "OpenPGP card appears to contain user data\n\n",
+			undef  => 'Do not use OpenPGP card',
 			layout => 3,
 		}
 	);
@@ -607,7 +616,7 @@ sub ask_email() {
 }
 
 sub ask_expiry() {
-	print qq[It is strongly recommended to set an expiry date on all PGP keys.
+	print qq[It is strongly recommended to set an expiry date on all OpenPGP keys.
 This ensures that lost keys will not remain valid forever. Expiry dates
 can be extended retrospectively.\n\n];
 	my $expiry_prompt = "Expires in (suffix d,w,m,y OR date as YYYY-MM-DD, default $default_expiry): ";
@@ -720,7 +729,7 @@ sub publish() {
 
 sub publish_wks() {
 	my $key_id = shift;
-    my $email_id = shift;
+    my $email_ids = shift; # array ref
     my ($mail_server, $port) = split(':', shift);
     $port = 25 unless $port;
     my $mail_username = shift;
@@ -731,26 +740,33 @@ sub publish_wks() {
         return 0;
     }
 
-    my $transport = Email::Sender::Transport::SMTP->new(
+	my $ssl_protocol='starttls';
+	$ssl_protocol='ssl' if($port == 465);
+    my $transport = Email::Sender::Transport::SMTP::Persistent->new(
         host=>$mail_server,
         port=>$port,
-        ssl=>'starttls',
+        ssl=>$ssl_protocol,
         sasl_username=>$mail_username,
         sasl_password=>$mail_password,
     );
 
-    open(my $handle, '-|', "/usr/lib/gnupg/gpg-wks-client --create '$key_id' '$email_id'")
-        or die "failed to create WKS request\n";
-
-    try {
-        Email::Sender::Simple->send(
-            do { local $/; <$handle>},
-            { transport=>$transport }
-        );
-    } catch {
-        &notify($_->message);
-    };
-    close($handle);
+	foreach my $email_id (@$email_ids) {
+		if(open(my $handle, '-|', "/usr/lib/gnupg/gpg-wks-client --create '$key_id' '$email_id'")) {
+			try {
+				Email::Sender::Simple->send(
+					do { local $/; <$handle>},
+					{ transport=>$transport }
+				);
+		        &notify(qq[Key submitted. Please check your email inbox(es) for further instructions]);
+			} catch {
+				&notify(qq[Failed to publish ID "$email_id" to WKS]);
+			};
+			close($handle);
+		} else {
+			warn qq[failed to create WKS request for "$email_id"\n];
+		};
+	}
+	$transport->disconnect;
 }
 
 sub email_key() {
@@ -762,10 +778,12 @@ sub email_key() {
     my $mail_password = shift;
     debug qq[emailing key $key_id];
 
+	my $ssl_protocol='starttls';
+	$ssl_protocol='ssl' if($port == 465);
     my $transport = Email::Sender::Transport::SMTP->new(
         host=>$mail_server,
         port=>$port,
-        ssl=>'starttls',
+        ssl=>$ssl_protocol,
         sasl_username=>$mail_username,
         sasl_password=>$mail_password,
     );
@@ -777,7 +795,7 @@ sub email_key() {
         header_str => [
             To      => $mail_recipient,
             From    => $mail_username . '@' . $mail_server,
-            Subject => "PGP key from frith",
+            Subject => "OpenPGP key from frith",
         ],
         parts => [
             q[See attached],
@@ -1287,7 +1305,7 @@ sub sc_subkey_write() {
         }], [
         'GET_HIDDEN passphrase\.enter', sub{
             my $self=shift;
-            $self->send($passphrase);
+            $self->send("$passphrase\n");
             # State machine: next passphrase prompt wants the admin pin
             $passphrase=$options->{'admin_pin'};
             exp_continue;
@@ -1563,7 +1581,7 @@ file is only protected with your passphrase. Hope you made a good one!
 $actionmap{$LA_backup_to_file} = \&SR_backup_to_file;
 
 sub SR_restore_from_file() {
-	return unless &make_confirm("restore your entire PGP config from backup");
+	return unless &make_confirm("restore your entire OpenPGP config from backup");
 
 	### This is ugly as sin. We should use a decent file selector library.
 	my $location_prompt = 'Backup file location';
@@ -1615,18 +1633,8 @@ sub SR_subkeys_to_file() {
 	return 1 unless $key_id;
 
 	&notify(qq[
-Private subkeys can be used to perform everyday PGP actions such as
-decryption, signing and authentication. The only forbidden actions are:
-	a) certifying other people's keys
-	b) modifying your own key
-For this you will require the primary key stored here.
-
-Private subkeys should normally be stored on a removable disk so that they
-can be imported into another computer without transferring them over a
-network. You should keep this removable disk safe because the only thing
-protecting your keys is your passphrase. You did set a strong one? ;-)
-
-A more secure alternative is a PGP smartcard. See:
+Private subkeys should only be stored on a removable disk if there is no other
+way to use them on your everyday machine. Please use an OpenPGP card instead:
 	https://en.wikipedia.org/wiki/OpenPGP_card
 ]);
 	return unless &make_yes("export your private subkeys to potentially insecure media");
@@ -1655,12 +1663,13 @@ $actionmap{$LA_subkeys_to_file} = \&SR_subkeys_to_file;
 
 # &mod_hook should be called any time the secret key is modified
 # This ensures that the user is prompted to update their backups and
-# subkeys
+# subkeys.
+# Some operations (such as changing key passphrases) don't affect smartcard
+# operation, so we provide &backup_hook for them instead.
 
 sub mod_hook() {
 	my $key_id = shift;
 	&notify(qq[
-<<< SECRET KEY MODIFIED >>>
 YOU SHOULD MAKE A NEW BACKUP NOW
 ]);
 	if($using_tails) {
@@ -1670,7 +1679,18 @@ YOU SHOULD MAKE A NEW BACKUP NOW
 	}
 	&notify(qq[YOU SHOULD RE-EXPORT YOUR PRIVATE SUBKEYS NOW]);
 	&SR_subkeys_to_smartcard($key_id);
-	&SR_subkeys_to_file($key_id);
+}
+
+sub backup_hook() {
+	my $key_id = shift;
+	&notify(qq[
+YOU SHOULD MAKE A NEW BACKUP NOW
+]);
+	if($using_tails) {
+		&SR_clone_to_tails;
+	} else {
+		&SR_backup_to_file;
+	}
 }
 
 
@@ -1842,10 +1862,7 @@ sub SR_publish_to_wks() {
         $mail_password = &secure_input('Mail server password: ');
     }
     if(&make_yes(qq[publish key $key_id to the Web Key Directory])) {
-        foreach my $email_id (@$email_ids) {
-            &publish_wks($key_id, $email_id, $mail_server, $mail_username, $mail_password);
-        }
-        &notify(qq[Key submitted. Please check your email inbox(es) for further instructions]);
+        &publish_wks($key_id, $email_ids, $mail_server, $mail_username, $mail_password);
     }
 }
 $actionmap{$LA_publish_to_wks} = \&SR_publish_to_wks;
@@ -1897,7 +1914,7 @@ sub SR_sc_status() {
 $actionmap{$LA_sc_status} = \&SR_sc_status;
 
 sub SR_sc_factory_reset() {
-	return 1 unless &make_confirm("reset your v2.x PGP smartcard to factory default (THIS WILL BRICK A v1.x CARD)");
+	return 1 unless &make_confirm("reset your v2.x OpenPGP card to factory default (THIS WILL BRICK A v1.x CARD)");
 
 	while(! &detect_smartcard) {
 		return 0 unless &prompt_insert_sc;
@@ -2019,8 +2036,8 @@ sub SR_key_passphrase() {
 	# TODO: We really should test the old passphrase before continuing...!
 	my $new_passphrase = &ask_passphrase;
 	&change_pass($key_id, $old_passphrase, $new_passphrase);
-	&mod_hook($key_id);
-    # TODO: Need method to force no smartcard update!
+    # Backup only, don't re-export unnecessarily to smartcard
+	&backup_hook($key_id);
 }
 $actionmap{$LA_key_passphrase} = \&SR_key_passphrase;
 
@@ -2109,7 +2126,6 @@ sub SR_expire_subkey() {
 	my $passphrase = &secure_input('Key passphrase: ');
 
 	&expire_subkey($key_id, $subkey_id, $expiry, $passphrase);
-	&mod_hook($key_id);
 	if(&make_yes(qq[republish key $key_id])) {
 		&publish($key_id);
 	}
@@ -2226,19 +2242,19 @@ ${program} manages your GnuPG private keys by offering the following
 services:
 
 * Creation, expiry and revocation of keys, subkeys and IDs
-* Export of private subkeys to removable media, e.g. PGP smartcard
+* Export of private subkeys to removable media, e.g. OpenPGP card
 * Certification of other people's keys (web of trust)
 * Upload of public keys to keyservers (requires a network connection)
 * Backup and restore to/from secondary media
 
-It is strongly recommended to use a PGP smartcard for everyday use.
+It is strongly recommended to use an OpenPGP card for everyday use.
 These store private subkeys in non-retrievable storage and perform
 decryption and signing operations in a tamper-proof processor on the
 card itself. You can thereby use your subkeys as normal (with a few
 caveats, see next page) on a laptop or desktop computer without ever
 storing private key material on that computer.
 
-If you do not have a PGP smartcard, or if your device/software does not
+If you do not have an OpenPGP card, or if your device/software does not
 support smartcard use, private subkeys can be exported in encrypted form
 and saved to a removable drive. This is obviously less secure, and
 should only be done if absolutely necessary.
@@ -2272,7 +2288,7 @@ you up and running, so long as you have the following to hand:
 * Two flash drives, at least one with Tails and ${program} installed
 	(8GB recommended)
 * A removable device to store your private subkeys
-	(PGP smartcard recommended, or a third flash drive in a pinch)
+	(OpenPGP card recommended, or a third flash drive in a pinch)
 
 You will be prompted to insert the second Tails drive to create a
 backup before exporting your private subkeys to a removable device. This
@@ -2315,12 +2331,14 @@ sub main() {
 		&notify("Tails detected");
 		if(! $using_tails_persistence) {
 			&notify("${program} on tails requires persistence");
-			# create or mount persistent volume
+			# TODO: create or mount persistent volume
+			exit;
 			&tails_test;
 		}
 		if(! $using_tails_persistence_gpg) {
 			&notify("${program} on tails requires persistent GPG");
-			# configure for gpg
+			# TODO: configure for gpg
+			exit;
 			$using_tails_persistence_gpg = 1;
 		}
 	} else {
@@ -2330,6 +2348,8 @@ it will work on any computer, you will not benefit from all the security
 features it provides, such as offline storage of your primary key.
 ]);
 		exit unless &make_warned;
+		# Disable tor
+		IO::Socket::Socks::Wrapper->import(0);
 	}
 
 	if(&first_time()){
