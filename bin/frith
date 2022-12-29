@@ -274,11 +274,11 @@ my $LA_restore_from_file = 'Restore from file';
 
 my $LA_publish_to_keyserver = 'Publish your key to the keyserver(s)';
 my $LA_publish_to_wks = 'Publish your key to your Web Key Service';
-my $LA_send_by_email = 'Send your key by email';
-my $LA_save_to_file = 'Save your key to a file';
+my $LA_send_by_email = 'Send your public key by email';
+my $LA_save_to_file = 'Save your public key to a file';
 
-my $LA_subkeys_to_file = 'Export private subkeys to file';
-my $LA_subkeys_to_smartcard = 'Export private subkeys to smartcard';
+my $LA_subkeys_to_file = 'Export your private subkeys to a file';
+my $LA_subkeys_to_smartcard = 'Export your private subkeys to a smartcard';
 
 my $LA_sc_status = 'Print smartcard status';
 my $LA_init_smartcard = 'Initialise smartcard';
@@ -317,9 +317,9 @@ my @CH_top = (
 );
 
 my @CH_certify = (
-    $LA_cert_scan,
+#    $LA_cert_scan,	# monkeysign is no longer available in debian
     $LA_cert_manual,
-#    $LA_decert_manual, # beware that publishing revocations to Hagrid is futile
+    $LA_decert_manual,
 );
 my @CH_generate = (
 	$LA_usedefaults,
@@ -1545,13 +1545,13 @@ sub SR_clone_to_tails() {
 Please insert a Tails USB disk.
 
 If you do not have one, clone this image to a blank USB now:
-Applications -> Tails -> Tails Installer -> Install by Cloning
+Applications -> Tails -> Tails Installer -> Clone the current Tails
 
 ...and come back to this window when finished.
 ]);
 
 	&user_input('Hit return to continue: ');
-	system('tails-clone-persistent');
+	system('tails-backup');
 }
 $actionmap{$LA_clone_to_tails} = \&SR_clone_to_tails;
 
@@ -1696,39 +1696,40 @@ YOU SHOULD MAKE A NEW BACKUP NOW
 
 ############### Certification
 
+# Monkeysign is no longer available in Debian
 
-sub SR_cert_scan() {
-    my $mail_server = '';
-    my $mail_username = '';
-    my $mail_password = '';
-# unlike monkeysign, monkeyscan's -u option appears to be a no-op - it
-# defaults to the oldest valid key regardless and you must select the signing
-# key from the dropdown. Don't prompt, so that the user isn't misled.
-# TODO: put this back in once we have got rid of monkeysign/scan (#34)
-#	my $my_key_id = &select_key('to certify with');
-#	return 0 unless $my_key_id;
+# sub SR_cert_scan() {
+#     my $mail_server = '';
+#     my $mail_username = '';
+#     my $mail_password = '';
+# # unlike monkeysign, monkeyscan's -u option appears to be a no-op - it
+# # defaults to the oldest valid key regardless and you must select the signing
+# # key from the dropdown. Don't prompt, so that the user isn't misled.
+# # TODO: put this back in once we have got rid of monkeysign/scan (#34)
+# #	my $my_key_id = &select_key('to certify with');
+# #	return 0 unless $my_key_id;
 
-	until($mail_server) {
-		$mail_server = &user_input('Mail server address (or address:port): ');
-	}
-	until($mail_username) {
-		$mail_username = &user_input('Mail server username: ');
-	}
-	until($mail_password) {
-		$mail_password = &secure_input('Mail server password: ');
-	}
+# 	until($mail_server) {
+# 		$mail_server = &user_input('Mail server address (or address:port): ');
+# 	}
+# 	until($mail_username) {
+# 		$mail_username = &user_input('Mail server username: ');
+# 	}
+# 	until($mail_password) {
+# 		$mail_password = &secure_input('Mail server password: ');
+# 	}
 
-    if($using_tails) {
-        system('monkeyscan', '--tor', '-s', $mail_server,
-            '--smtpuser', $mail_username, '--smtppass', $mail_password)
-#            '-u', $my_key_id);
-    } else {
-        system('monkeyscan', '-s', $mail_server,
-            '--smtpuser', $mail_username, '--smtppass', $mail_password)
-#            '-u', $my_key_id);
-    }
-}
-$actionmap{$LA_cert_scan} = \&SR_cert_scan;
+#     if($using_tails) {
+#         system('monkeyscan', '--tor', '-s', $mail_server,
+#             '--smtpuser', $mail_username, '--smtppass', $mail_password)
+# #            '-u', $my_key_id);
+#     } else {
+#         system('monkeyscan', '-s', $mail_server,
+#             '--smtpuser', $mail_username, '--smtppass', $mail_password)
+# #            '-u', $my_key_id);
+#     }
+# }
+# $actionmap{$LA_cert_scan} = \&SR_cert_scan;
 
 sub SR_cert_manual() {
     my $mail_server = '';
