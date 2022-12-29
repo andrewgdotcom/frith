@@ -274,11 +274,11 @@ my $LA_restore_from_file = 'Restore from file';
 
 my $LA_publish_to_keyserver = 'Publish your key to the keyserver(s)';
 my $LA_publish_to_wks = 'Publish your key to your Web Key Service';
-my $LA_send_by_email = 'Send your key by email';
-my $LA_save_to_file = 'Save your key to a file';
+my $LA_send_by_email = 'Send your public key by email';
+my $LA_save_to_file = 'Save your public key to a file';
 
-my $LA_subkeys_to_file = 'Export private subkeys to file';
-my $LA_subkeys_to_smartcard = 'Export private subkeys to smartcard';
+my $LA_subkeys_to_file = 'Export your private subkeys to a file';
+my $LA_subkeys_to_smartcard = 'Export your private subkeys to a smartcard';
 
 my $LA_sc_status = 'Print smartcard status';
 my $LA_init_smartcard = 'Initialise smartcard';
