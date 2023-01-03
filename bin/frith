@@ -1895,6 +1895,7 @@ $actionmap{$LA_send_by_email} = \&SR_send_by_email;
 
 sub SR_save_to_file() {
     my $key_id = &select_key('to export');
+    return 0 unless $key_id;
     my $output_file = catfile(home(), "${key_id}.asc");
     &export_key($key_id, $output_file);
     &notify(qq[Key written to $output_file]);
