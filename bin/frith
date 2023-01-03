@@ -398,7 +398,7 @@ sub make_submenu() {
 	my $response = $menu->choose(
 		[@_, undef],
 		{
-			prompt => "${heading}\n\n",
+			prompt => "${heading}\n",
 			undef  => 'Back',
 			layout => 3,
 		}
@@ -418,7 +418,7 @@ sub make_confirm() {
 	my $response = $menu->choose(
 		[undef, 'Yes, I am really really sure'],
 		{
-			prompt => "Are you really really sure you want to ${heading}?\n\n",
+			prompt => "Are you really really sure you want to ${heading}?\n",
 			undef  => 'On second thoughts, no',
 			layout => 3,
 		}
@@ -431,7 +431,7 @@ sub make_yes() {
 	my $response = $menu->choose(
 		['Yes', undef],
 		{
-			prompt => "I am about to ${heading}. Continue?\n\n",
+			prompt => "I am about to ${heading}. Continue?\n",
 			undef  => 'Cancel',
 			layout => 3,
 		}
@@ -455,7 +455,7 @@ sub make_warned() {
 	my $response = $menu->choose(
 		['Run away! Run away!', undef],
 		{
-			prompt => "CONSIDER YOURSELF WARNED\n\n",
+			prompt => "CONSIDER YOURSELF WARNED\n",
 			undef  => 'Yes, I consider myself warned',
 			layout => 3,
 		}
@@ -468,7 +468,7 @@ sub prompt_insert_sc() {
 	my $response = $menu->choose(
 		['OK', undef],
 		{
-			prompt => "Please insert an OpenPGP card\n\n",
+			prompt => "Please insert an OpenPGP card\n",
 			undef  => 'Continue without OpenPGP card',
 			layout => 3,
 		}
@@ -480,7 +480,7 @@ sub prompt_overwrite_old_sc() {
 	my $response = $menu->choose(
 		[undef, 'Overwrite smartcard'],
 		{
-			prompt => "OpenPGP card appears to contain user data\n\n",
+			prompt => "OpenPGP card appears to contain user data\n",
 			undef  => 'Do not use OpenPGP card',
 			layout => 3,
 		}
@@ -1895,6 +1895,7 @@ $actionmap{$LA_send_by_email} = \&SR_send_by_email;
 
 sub SR_save_to_file() {
     my $key_id = &select_key('to export');
+    return 0 unless $key_id;
     my $output_file = catfile(home(), "${key_id}.asc");
     &export_key($key_id, $output_file);
     &notify(qq[Key written to $output_file]);
@@ -1968,6 +1969,7 @@ sub SR_subkeys_to_smartcard() {
 #		return 0 unless &prompt_overwrite_old_sc;
 	}
 	$key_id = &select_key('to write to smartcard') unless $key_id;
+	return 0 unless $key_id;
 
 	# Now get the indexes (NOT IDs!) of each valid subkey
 	my $subkey_s = &get_subkey_id($key_id, 's', {'by_index' => 1});
@@ -2184,6 +2186,7 @@ $actionmap{$LA_revoke_subkey} = \&SR_revoke_subkey;
 sub SR_revoke_primary() {
 	debug qq[the big one. choose a primary key and nuke it];
 	my $key_id = &select_key('to revoke');
+	return 0 unless $key_id;
 	return 0 unless &make_confirm(qq[revoke the key ${key_id}]);
 	my $passphrase = &secure_input('Key passphrase: ');
 
@@ -2214,7 +2217,7 @@ $actionmap{$LA_getting_started} = \&SR_getting_started;
 
 
 sub SR_manual() {
-	system ('clear');
+	system ('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 ${program} is a utility to simplify the best practice use of GnuPG
 encryption keys. It is intended to be used OFFLINE with the aid of a
@@ -2237,7 +2240,7 @@ currently some noise emitted from gnupg's batch interface when carrying
 out certain operations - this is expected, if ugly. I'm working on it...
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 ${program} manages your GnuPG private keys by offering the following
 services:
@@ -2261,7 +2264,7 @@ and saved to a removable drive. This is obviously less secure, and
 should only be done if absolutely necessary.
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 Exporting your primary private key is NOT supported. This key is used
 to confirm your identity and the validity of your subkeys. Unlike your
@@ -2280,7 +2283,7 @@ on a non-Tails environment this restriction does not apply, BUT you lose
 the extra security of keeping your primary private key stored offline.
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 For most users, the Getting Started Wizard should be sufficient to get
 you up and running, so long as you have the following to hand:
@@ -2299,7 +2302,7 @@ backup after creating new keys or subkeys - everything else can be
 generated again from the info in the public key.
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 For further information, check the project homepage at
 https://andrewg.com/frith.html
@@ -2373,7 +2376,7 @@ features it provides, such as offline storage of your primary key.
 		my $response = $menu->choose(
 			[@CH_top, undef],
 			{
-				prompt => "MAIN MENU\n\n",
+				prompt => "MAIN MENU\n",
 				undef  => 'Exit',
 				layout => 3,
 			}
@@ -2417,6 +2420,7 @@ features it provides, such as offline storage of your primary key.
 			last unless $subresponse;
 			&evaluate_choice($subresponse);
 			&user_input('Hit enter to return to menu: ');
+			system ('clear') unless $CMD_OPTIONS{'debug'};
 		}
 	}
 }
