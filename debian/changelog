@@ -1,4 +1,10 @@
-frith (0.1.0~beta8.4) UNRELEASED; urgency=medium
+frith (0.1.0~beta9.1) UNRELEASED; urgency=medium
+
+  * Remove stale deps on monkeysign, tails-clone-persistent
+
+ -- Andrew Gallagher <andrewg@andrewg.com>  Thu, 29 Dec 2022 14:06:18 +0000
+
+frith (0.1.0~beta8.4) andrewg-test; urgency=medium
 
   * Don't prompt unnecessarily for subkey exports
   * Avoid dereferencing unexpected error object
