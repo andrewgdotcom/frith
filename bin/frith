@@ -1969,6 +1969,7 @@ sub SR_subkeys_to_smartcard() {
 #		return 0 unless &prompt_overwrite_old_sc;
 	}
 	$key_id = &select_key('to write to smartcard') unless $key_id;
+	return 0 unless $key_id;
 
 	# Now get the indexes (NOT IDs!) of each valid subkey
 	my $subkey_s = &get_subkey_id($key_id, 's', {'by_index' => 1});
@@ -2185,6 +2186,7 @@ $actionmap{$LA_revoke_subkey} = \&SR_revoke_subkey;
 sub SR_revoke_primary() {
 	debug qq[the big one. choose a primary key and nuke it];
 	my $key_id = &select_key('to revoke');
+	return 0 unless $key_id;
 	return 0 unless &make_confirm(qq[revoke the key ${key_id}]);
 	my $passphrase = &secure_input('Key passphrase: ');
 
