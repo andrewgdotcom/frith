@@ -2214,7 +2214,7 @@ $actionmap{$LA_getting_started} = \&SR_getting_started;
 
 
 sub SR_manual() {
-	system ('clear');
+	system ('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 ${program} is a utility to simplify the best practice use of GnuPG
 encryption keys. It is intended to be used OFFLINE with the aid of a
@@ -2237,7 +2237,7 @@ currently some noise emitted from gnupg's batch interface when carrying
 out certain operations - this is expected, if ugly. I'm working on it...
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 ${program} manages your GnuPG private keys by offering the following
 services:
@@ -2261,7 +2261,7 @@ and saved to a removable drive. This is obviously less secure, and
 should only be done if absolutely necessary.
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 Exporting your primary private key is NOT supported. This key is used
 to confirm your identity and the validity of your subkeys. Unlike your
@@ -2280,7 +2280,7 @@ on a non-Tails environment this restriction does not apply, BUT you lose
 the extra security of keeping your primary private key stored offline.
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 For most users, the Getting Started Wizard should be sufficient to get
 you up and running, so long as you have the following to hand:
@@ -2299,7 +2299,7 @@ backup after creating new keys or subkeys - everything else can be
 generated again from the info in the public key.
 ]);
 	return unless &make_pause();
-	system('clear');
+	system('clear') unless $CMD_OPTIONS{'debug'};
 	&notify(qq[
 For further information, check the project homepage at
 https://andrewg.com/frith.html
@@ -2417,6 +2417,7 @@ features it provides, such as offline storage of your primary key.
 			last unless $subresponse;
 			&evaluate_choice($subresponse);
 			&user_input('Hit enter to return to menu: ');
+			system ('clear') unless $CMD_OPTIONS{'debug'};
 		}
 	}
 }
