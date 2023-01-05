@@ -1507,7 +1507,7 @@ sub find_public_key() {
 	my $prompt = shift;
 	my $success = 0;
 	my $key_id = &id_filter(&user_input("Enter LONG key ID or fingerprint $prompt: "));
-	if($key_id =~ /^([a-fA-F0-9]{16}|[a-fA-F0-9]{40})$/) {
+	if($key_id =~ /^([a-fA-F0-9]{16}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/) {
 		$success = &download_key($key_id);
 	} else {
 		&notify(qq[That was not a valid LONG key ID or fingerprint]);
